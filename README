@@ -8,11 +8,14 @@ kept so the tracker can be tailored for personal satellite work.
 Gpredict itself remains the canonical program. It is written and maintained
 by Alexandru Csete, OZ9AEC.
 
-  Original homepage:   http://gpredict.oz9aec.net/
-  Original source:     https://github.com/csete/gpredict
-  Original forum:      https://community.libre.space/c/gpredict
+  Original homepage:    https://oz9aec.dk/gpredict/
+  Original manual:      https://oz9aec.dk/gpredict/documents.php
+  Original source:      https://github.com/csete/gpredict
+  Original forum:       https://community.libre.space/c/gpredict
   Original discussions: https://github.com/csete/gpredict/discussions
-  This fork:           https://github.com/jkl213/gpredict-blue
+  This fork:            https://github.com/jkl213/gpredict-blue
+
+http://gpredict.oz9aec.net/ still redirects to that homepage.
 
 General questions, bug reports, and contributions for Gpredict belong with
 the original project. Personal changes for this fork live in this repository.
@@ -41,10 +44,10 @@ Some core features of Gpredict include:
 - Doppler tuning of radios via Hamlib rigctld
 - Antenna rotator control via Hamlib rotctld
 
-The original homepage has further background and the user manual:
+Further background and the user manual are on the original site:
 
-  http://gpredict.oz9aec.net/
-  http://gpredict.oz9aec.net/documents.php
+  https://oz9aec.dk/gpredict/
+  https://oz9aec.dk/gpredict/documents.php
 
 
 Requirements
@@ -98,7 +101,7 @@ default module (click on the small down-arrow in the top right corner), or
 create a new module through File -> New Module.
 
 The user manual for the original program is at
-http://gpredict.oz9aec.net/documents.php
+https://oz9aec.dk/gpredict/documents.php
 
 
 User support
