@@ -78,8 +78,8 @@ system and compile:
   make install
 
 ./autogen.sh accepts the same options as ./configure. The install step
-usually requires root. To install into a personal directory instead, pass
-a prefix:
+usually requires root. To install into a personal directory, pass a
+prefix:
 
   ./autogen.sh --prefix=$HOME/gpredict
   make
