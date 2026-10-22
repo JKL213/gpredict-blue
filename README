@@ -1,4 +1,26 @@
 
+gpredict-blue
+=============
+
+This repository is Jan-Henrik's private fork of Gpredict. It is the copy
+kept so the tracker can be tailored for personal satellite work.
+
+Gpredict itself remains the canonical program. It is written and maintained
+by Alexandru Csete, OZ9AEC.
+
+  Original homepage:   http://gpredict.oz9aec.net/
+  Original source:     https://github.com/csete/gpredict
+  Original forum:      https://community.libre.space/c/gpredict
+  Original discussions: https://github.com/csete/gpredict/discussions
+  This fork:           https://github.com/jkl213/gpredict-blue
+
+General questions, bug reports, and contributions for Gpredict belong with
+the original project. Personal changes for this fork live in this repository.
+
+
+Gpredict
+--------
+
 Gpredict is a real time satellite tracking and orbit prediction program
 for the Linux desktop. It uses the SGP4/SDP4 propagation algorithms together
 with NORAD two-line element sets (TLE).
@@ -19,7 +41,10 @@ Some core features of Gpredict include:
 - Doppler tuning of radios via Hamlib rigctld
 - Antenna rotator control via Hamlib rotctld
 
-Visit the gpredict homepage at http://gpredict.oz9aec.net/ for more info.
+The original homepage has further background and the user manual:
+
+  http://gpredict.oz9aec.net/
+  http://gpredict.oz9aec.net/documents.php
 
 
 Requirements
@@ -42,32 +67,26 @@ Ubuntu systems you can install the build dependencies using:
   sudo apt install pkg-config libglib2.0-dev libgtk-3-dev
 
 
-To build and install gpredict from source, first unpack the source package:
+Building
+--------
 
-  tar -xvf gpredict-x.y.z.tar.gz
+This fork is a git checkout. From the source directory, generate the build
+system and compile:
 
-Then change to the gpredict-x.y.z directory and build gpredict:
-
-  ./configure
+  ./autogen.sh
   make
   make install
 
-The last step usually requires you to become root, otherwise you may not have
-the required permissions to install gpredict. If you can not or do not want to
-install gpredict as root, you can install gpredict into a custom directory by
-adding --prefix=somedir to the ./configure step. For example
+./autogen.sh accepts the same options as ./configure. The install step
+usually requires root. To install into a personal directory instead, pass
+a prefix:
 
-  ./configure --prefix=$HOME/gpredict
-  
-will configure the build to install the files into your home directory under
-gpredict.
+  ./autogen.sh --prefix=$HOME/gpredict
+  make
+  make install
 
-If you are building directly from the git repository, you have to run
-./autogen.sh instead of of configure. You can pass the same options to the
-autogen.sh script as you would to the configure script.
-
-If you want to know more about installation options refer to the INSTALL file
-(not for beginners).
+A release tarball can be built with ./configure in place of ./autogen.sh.
+Further installation options are described in the INSTALL file.
 
 
 Using Gpredict
@@ -78,33 +97,42 @@ Once you got the idea of the UI, you can either modify the settings of the
 default module (click on the small down-arrow in the top right corner), or
 create a new module through File -> New Module.
 
-You are highly encouraged to have a look at the user manual available at
+The user manual for the original program is at
 http://gpredict.oz9aec.net/documents.php
 
 
 User support
 ------------
 
-User support is provided through the Gpredict forum hosted by the Libre Space
-Foundation: https://community.libre.space/c/gpredict
-You can also try the new Github Discussions at 
+Support for Gpredict is provided through the forum hosted by the Libre Space
+Foundation:
+
+  https://community.libre.space/c/gpredict
+
+Discussions for the original project are at
 https://github.com/csete/gpredict/discussions
+
+This fork is for private use. Notes that apply only to personal changes
+belong with https://github.com/jkl213/gpredict-blue
 
 
 Terms and conditions
 --------------------
 
 Gpredict is released under the GNU General Public License and comes with
-NO WARRANTY whatsoever. If you have problems installing or using Gpredict,
-feel free to ask for support for example on the Gpredict forum hosted by
-the Libre Space Foundation https://community.libre.space/c/gpredict
+NO WARRANTY whatsoever. The same terms cover this fork. See the COPYING file.
 
+Development of Gpredict moved from Sourceforge to GitHub:
 
-Note that the development environment has migrated from Sourceforge to
-Github: https://github.com/csete/gpredict
+  https://github.com/csete/gpredict
 
-Mailing lists, old bug trackers, etc, are still available on Sourceforge:
-http://sourceforge.net/projects/gpredict
+Mailing lists and the old bug trackers remain on Sourceforge:
+
+  http://sourceforge.net/projects/gpredict
+
+This private fork is published separately at:
+
+  https://github.com/jkl213/gpredict-blue
 
 
 Happy Tracking!
