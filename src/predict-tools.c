@@ -421,6 +421,21 @@ pass_t *get_pass(sat_t * sat_in, qth_t * qth, gdouble start, gdouble maxdt)
 }
 
 /**
+ * \brief Predict the first pass that reaches a caller-supplied elevation.
+ *
+ * \param min_el Minimum peak elevation in degrees. 0 keeps every pass
+ *               that crosses the horizon.
+ */
+pass_t         *get_pass_with_min_el(sat_t * sat_in, qth_t * qth, gdouble start,
+                                     gdouble maxdt, gdouble min_el)
+{
+    if (min_el < 0.0)
+        min_el = 0.0;
+
+    return get_pass_engine(sat_in, qth, start, maxdt, min_el);
+}
+
+/**
  * \brief Predict first pass after a certain time ignoring the min elevation.
  * \param sat Pointer to the satellite data.
  * \param qth Pointer to the location data.
@@ -709,6 +724,52 @@ GSList         *get_passes(sat_t * sat, qth_t * qth, gdouble start,
                 _("%s: Found %d passes for %s in time window [%f;%f]"),
                 __func__, g_slist_length(passes), sat->nickname, start,
                 start + maxdt);
+
+    return passes;
+}
+
+/**
+ * \brief Predict passes that reach a caller-supplied elevation.
+ *
+ * Same window and count as get_passes(). \a min_el is the minimum peak
+ * elevation in degrees; 0 keeps every horizon crossing.
+ */
+GSList         *get_passes_with_min_el(sat_t * sat, qth_t * qth, gdouble start,
+                                       gdouble maxdt, guint num, gdouble min_el)
+{
+    GSList         *passes = NULL;
+    pass_t         *pass = NULL;
+    guint           i;
+    gdouble         t;
+
+    if (num == 0)
+        num = 100;
+
+    if (min_el < 0.0)
+        min_el = 0.0;
+
+    t = start;
+
+    for (i = 0; i < num; i++)
+    {
+        pass = get_pass_with_min_el(sat, qth, t, maxdt, min_el);
+
+        if (pass != NULL)
+        {
+            passes = g_slist_prepend(passes, pass);
+            t = pass->los + 0.014;      /* +20 min */
+
+            if ((maxdt > 0.0) && (t >= (start + maxdt)))
+                i = num;
+        }
+        else
+        {
+            i = num;
+        }
+    }
+
+    if (passes != NULL)
+        passes = g_slist_reverse(passes);
 
     return passes;
 }

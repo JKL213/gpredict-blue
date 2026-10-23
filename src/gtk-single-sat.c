@@ -447,6 +447,7 @@ static void select_satellite(GtkWidget * menuitem, gpointer data)
         GPOINTER_TO_UINT(g_object_get_data(G_OBJECT(menuitem), "index"));
     gchar          *title;
     sat_t          *sat;
+    GtkWidget      *modulew;
 
     /* there are many "ghost"-trigging of this signal, but we only need to make
        a new selection when the received menuitem is selected
@@ -460,6 +461,10 @@ static void select_satellite(GtkWidget * menuitem, gpointer data)
         title = g_markup_printf_escaped("<b>%s</b>", sat->nickname);
         gtk_label_set_markup(GTK_LABEL(ssat->header), title);
         g_free(title);
+
+        modulew = gtk_widget_get_ancestor(GTK_WIDGET(ssat), GTK_TYPE_SAT_MODULE);
+        if (modulew != NULL)
+            gtk_sat_module_select_sat(GTK_SAT_MODULE(modulew), sat->tle.catnr);
     }
 }
 

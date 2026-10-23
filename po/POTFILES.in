@@ -26,6 +26,7 @@ src/gtk-sat-popup-common.c
 src/gtk-sat-selector.c
 src/gtk-sat-tree.c
 src/gtk-single-sat.c
+src/gtk-trsp-view.c
 src/gtk-sky-glance.c
 src/gui.c
 src/locator.c
@@ -74,6 +75,7 @@ src/sat-pref-rig-editor.c
 src/sat-pref-rot.c
 src/sat-pref-rot-editor.c
 src/sat-pref-single-pass.c
+src/sat-pref-passes.c
 src/sat-pref-single-sat.c
 src/sat-pref-sky-at-glance.c
 src/sat-pref-tle.c

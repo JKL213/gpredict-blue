@@ -216,6 +216,8 @@ sat_cfg_int_t   sat_cfg_int[SAT_CFG_INT_NUM] = {
     {"TLE", "LAST_UPDATE", 0},
     {"LOG", "CLEAN_AGE", 0},    /* 0 = Never clean */
     {"LOG", "LEVEL", 2},
+    /* Same factory value as PREDICT/MINIMUM_ELEV. 0 disables the filter. */
+    {"MODULES", "PASS_MIN_EL", 5},
     {"GLOBAL", "NOTIFY_LEAD", 60}
 };
 

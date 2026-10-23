@@ -11,9 +11,11 @@ void            show_current_pass_cb(GtkWidget * menuitem, gpointer data);
 void            show_next_pass_cb(GtkWidget * menuitem, gpointer data);
 void            show_future_passes_cb(GtkWidget * menuitem, gpointer data);
 void            show_next_pass_dialog(sat_t * sat, qth_t * qth,
-                                      gdouble tstamp, GtkWindow * toplevel);
+                                      gdouble tstamp, GtkWindow * toplevel,
+                                      GtkWidget * origin);
 void            show_future_passes_dialog(sat_t * sat, qth_t * qth,
                                           gdouble tstamp,
-                                          GtkWindow * toplevel);
+                                          GtkWindow * toplevel,
+                                          GtkWidget * origin);
 
 #endif

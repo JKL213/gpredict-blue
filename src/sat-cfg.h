@@ -137,6 +137,7 @@ typedef enum {
     SAT_CFG_INT_TLE_LAST_UPDATE,        /*!< Date and time of last update, Unix seconds. */
     SAT_CFG_INT_LOG_CLEAN_AGE,  /*!< Age of log file to delete (seconds) */
     SAT_CFG_INT_LOG_LEVEL,      /*!< Logging level */
+    SAT_CFG_INT_MODULE_MIN_EL,  /*!< Default minimum elevation for module passes. */
     SAT_CFG_INT_NOTIFY_LEAD,    /*!< Seconds before AOS to send a warning. */
     SAT_CFG_INT_NUM             /*!< Number of integer parameters. */
 } sat_cfg_int_e;

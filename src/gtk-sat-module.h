@@ -28,6 +28,7 @@ typedef enum {
     GTK_SAT_MOD_VIEW_POLAR,     /*!< GtkPolarView */
     GTK_SAT_MOD_VIEW_SINGLE,    /*!< GtkSingleSat */
     GTK_SAT_MOD_VIEW_EVENT,     /*!< GtkEventList */
+    GTK_SAT_MOD_VIEW_TRSP,      /*!< GtkTrspView */
     GTK_SAT_MOD_VIEW_NUM,       /*!< Number of modules */
 } gtk_sat_mod_view_t;
 
@@ -115,6 +116,8 @@ struct _gtk_sat_module {
     /* auto-tracking */
     gint            target;     /*!< Target satellite */
     gboolean        autotrack;  /*!< Whether automatic tracking is enabled */
+    gint            min_el;     /*!< Minimum pass elevation [deg]. 0 = horizon. */
+    gboolean        skip_events; /*!< Second update in a cycle skips pass search. */
 
     /* location structure */
     struct gps_data_t *gps_data;        /*!< GPSD data structure */
@@ -133,6 +136,7 @@ void            gtk_sat_module_config_cb(GtkWidget * button, gpointer data);
 void            gtk_sat_module_reload_sats(GtkSatModule * module);
 void            gtk_sat_module_reconf(GtkSatModule * module, gboolean local);
 void            gtk_sat_module_select_sat(GtkSatModule * module, gint catnum);
+gint            gtk_sat_module_get_min_el(GtkSatModule * module);
 
 void            gtk_sat_module_fix_size(GtkWidget * module);
 

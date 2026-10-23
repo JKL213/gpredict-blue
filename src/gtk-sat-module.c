@@ -54,6 +54,7 @@
 #include "gtk-sat-module-tmg.h"
 #include "gtk-single-sat.h"
 #include "gtk-sky-glance.h"
+#include "gtk-trsp-view.h"
 #include "mod-cfg.h"
 #include "mod-cfg-get-param.h"
 #include "mod-mgr.h"
@@ -81,7 +82,7 @@ static void update_autotrack(GtkSatModule * module)
     guint           i, n;
     double          next_aos;
     gint            next_sat;
-    int             min_ele = sat_cfg_get_int(SAT_CFG_INT_PRED_MIN_EL);
+    int             min_ele = module->min_el;
 
     if (module->target > 0)
         sat = g_hash_table_lookup(module->satellites, &module->target);
@@ -261,6 +262,8 @@ static void gtk_sat_module_init(GtkSatModule * module,
 
     module->target = -1;
     module->autotrack = FALSE;
+    module->min_el = 0;
+    module->skip_events = FALSE;
 }
 
 GType gtk_sat_module_get_type()
@@ -327,6 +330,11 @@ static GtkWidget *create_view(GtkSatModule * module, guint num)
     case GTK_SAT_MOD_VIEW_EVENT:
         view = gtk_event_list_new(module->cfgdata,
                                   module->satellites, module->qth, 0);
+        break;
+
+    case GTK_SAT_MOD_VIEW_TRSP:
+        view = gtk_trsp_view_new(module->cfgdata,
+                                 module->satellites, module->qth);
         break;
 
     default:
@@ -609,6 +617,12 @@ static void update_child(GtkWidget * child, gdouble tstamp)
         gtk_event_list_update(child);
     }
 
+    else if (IS_GTK_TRSP_VIEW(child))
+    {
+        GTK_TRSP_VIEW(child)->tstamp = tstamp;
+        gtk_trsp_view_update(child);
+    }
+
     else
     {
         sat_log_log(SAT_LOG_LEVEL_ERROR,
@@ -617,15 +631,49 @@ static void update_child(GtkWidget * child, gdouble tstamp)
 }
 
 /**
- * Update a given satellite.
+ * Store AOS/LOS of the next pass that reaches the module elevation.
  *
- * @param key The hash table key (catnum)
- * @param val The hash table value (sat_t structure)
- * @param data User data (the GtkSatModule widget).
- *
- * This function updates the tracking data for a given satellite. It is called by
- * the timeout handler for each element in the hash table.
+ * Runs on the event cadence and again when a stored event has expired.
+ * The second satellite update of a cycle only refreshes the live position,
+ * so it leaves these times alone.
  */
+static void update_sat_pass(sat_t * sat, GtkSatModule * module, gdouble daynum,
+                            gdouble maxdt)
+{
+    pass_t         *pass;
+    gboolean        stale;
+
+    if (module->skip_events)
+        return;
+
+    stale = (sat->aos > 0.0 && sat->aos < daynum) ||
+        (sat->los > 0.0 && sat->los < daynum);
+
+    if ((module->event_count != 0) && !stale)
+        return;
+
+    if (!has_aos(sat, module->qth))
+    {
+        sat->aos = 0.0;
+        sat->los = 0.0;
+        return;
+    }
+
+    pass = get_pass_with_min_el(sat, module->qth, daynum, maxdt,
+                                (gdouble) module->min_el);
+    if (pass != NULL)
+    {
+        sat->aos = pass->aos;
+        sat->los = pass->los;
+        free_pass(pass);
+    }
+    else
+    {
+        sat->aos = 0.0;
+        sat->los = 0.0;
+    }
+}
+
 static void gtk_sat_module_update_sat(gpointer key, gpointer val,
                                       gpointer data)
 {
@@ -644,6 +692,14 @@ static void gtk_sat_module_update_sat(gpointer key, gpointer val,
 
     /* get current time (real or simulated */
     daynum = module->tmgCdnum;
+
+    /* A module elevation above the horizon replaces the horizon search. */
+    if (module->min_el > 0)
+    {
+        update_sat_pass(sat, module, daynum, maxdt);
+        predict_calc(sat, module->qth, daynum);
+        return;
+    }
 
     /* update events if the event counter has been reset
        and the other requirements are fulfilled */
@@ -795,10 +851,15 @@ static gboolean gtk_sat_module_timeout_cb(gpointer module)
             update_child(child, mod->tmgCdnum);
         }
 
+        /* The second update only refreshes positions. */
+        mod->skip_events = TRUE;
+
         /* update satellite data (it may have got out of sync during child updates) */
         if (mod->satellites != NULL)
             g_hash_table_foreach(mod->satellites,
                                  gtk_sat_module_update_sat, module);
+
+        mod->skip_events = FALSE;
 
         /* update target if autotracking is enabled */
         if (mod->autotrack)
@@ -942,6 +1003,14 @@ static void gtk_sat_module_read_cfg_data(GtkSatModule * module,
                                       MOD_CFG_GLOBAL_SECTION,
                                       MOD_CFG_TIMEOUT_KEY,
                                       SAT_CFG_INT_MODULE_TIMEOUT);
+
+    /* Minimum peak elevation for passes shown by this module.
+       Missing key uses the Modules → Passes default (factory value matches
+       the global predict threshold). 0 keeps horizon crossings. */
+    module->min_el = mod_cfg_get_int(module->cfgdata,
+                                     MOD_CFG_EVENT_LIST_SECTION,
+                                     MOD_CFG_EVENT_LIST_MIN_EL,
+                                     SAT_CFG_INT_MODULE_MIN_EL);
 
     /* get grid layout configuration (introduced in 1.2) */
     buffer = mod_cfg_get_str(module->cfgdata,
@@ -1409,6 +1478,10 @@ static void reload_sats_in_child(GtkWidget * widget, GtkSatModule * module)
     {
         /* NOP */
     }
+    else if (IS_GTK_TRSP_VIEW(widget))
+    {
+        gtk_trsp_view_reload_sats(widget, module->satellites);
+    }
     else
     {
         sat_log_log(SAT_LOG_LEVEL_ERROR,
@@ -1467,11 +1540,23 @@ void gtk_sat_module_reload_sats(GtkSatModule * module)
     g_mutex_unlock(&module->busy);
 }
 
+/** Minimum peak elevation configured for this module, in degrees. */
+gint gtk_sat_module_get_min_el(GtkSatModule * module)
+{
+    g_return_val_if_fail(module != NULL, 0);
+
+    return module->min_el;
+}
+
 /** Select a new satellite */
 void gtk_sat_module_select_sat(GtkSatModule * module, gint catnum)
 {
     GtkWidget      *child;
     guint           i;
+
+    /* Child views report their own selection back here. Ignore that echo. */
+    if (module->target == catnum)
+        return;
 
     module->target = catnum;
 
@@ -1499,6 +1584,10 @@ void gtk_sat_module_select_sat(GtkSatModule * module, gint catnum)
         else if (IS_GTK_POLAR_VIEW(child))
         {
             gtk_polar_view_select_sat(child, catnum);
+        }
+        else if (IS_GTK_TRSP_VIEW(child))
+        {
+            gtk_trsp_view_select_sat(child, catnum);
         }
         else
         {

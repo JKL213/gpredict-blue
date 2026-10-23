@@ -2,8 +2,16 @@
 gpredict-blue
 =============
 
-This repository is Jan-Henrik's private fork of Gpredict. It is the copy
-kept so the tracker can be tailored for personal satellite work.
+This repository is a peak AI slop fork of Alexandru Csete's amazing GPREDICT program for my (DN9JUR)s personal use. 
+
+Most of this repository's code is not stable enough to genuinely be merged into the Gpredict project, and will therefore most likely not match the standards set. 
+
+As Gpredict Blue is just a very, very personal fork, there are currently no binaries provided, so you will have to compile it yourself. The process does not differ from Gpredict's standard. 
+
+Features include:
+- Frequency panel to show the frequencies of a satellite without having to open a context menu. 
+- Turnable polar view with antenna/dish pointing helper.
+- And more to come!
 
 Gpredict itself remains the canonical program. It is written and maintained
 by Alexandru Csete, OZ9AEC.

@@ -59,6 +59,7 @@ gpredict_SOURCES = \
     gtk-sat-popup-common.c gtk-sat-popup-common.h \
     gtk-sat-selector.c gtk-sat-selector.h \
     gtk-single-sat.c gtk-single-sat.h \
+    gtk-trsp-view.c gtk-trsp-view.h \
     gtk-sky-glance.c gtk-sky-glance.h \
     gui.c gui.h \
     loc-tree.c loc-tree.h \
@@ -103,6 +104,7 @@ gpredict_SOURCES = \
     sat-pref-list-view.c sat-pref-list-view.h \
     sat-pref-polar-view.c sat-pref-polar-view.h \
     sat-pref-single-sat.c sat-pref-single-sat.h \
+    sat-pref-passes.c sat-pref-passes.h \
     sat-pref-interfaces.c sat-pref-interfaces.h \
     sat-pref-rig.c sat-pref-rig.h sat-pref-rig-data.h \
     sat-pref-rig-editor.c sat-pref-rig-editor.h \

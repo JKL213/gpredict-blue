@@ -35,6 +35,7 @@
 #include "gtk-sat-data.h"
 #include "gtk-sat-list.h"
 #include "gtk-sat-list-popup.h"
+#include "gtk-sat-module.h"
 #include "locator.h"
 #include "mod-cfg-get-param.h"
 #include "orbit-tools.h"
@@ -212,6 +213,8 @@ static gboolean button_press_cb(GtkWidget * treeview, GdkEventButton * event,
                                 gpointer list);
 static void     row_activated_cb(GtkTreeView * tree_view, GtkTreePath * path,
                                  GtkTreeViewColumn * column, gpointer list);
+static void     sat_list_sel_changed(GtkTreeSelection * selection,
+                                     gpointer list);
 
 static void     view_popup_menu(GtkWidget * treeview, GdkEventButton * event,
                                 gpointer list);
@@ -418,6 +421,8 @@ GtkWidget      *gtk_sat_list_new(GKeyFile * cfgdata, GHashTable * sats,
                      G_CALLBACK(popup_menu_cb), satlist);
     g_signal_connect(satlist->treeview, "row-activated",
                      G_CALLBACK(row_activated_cb), satlist);
+    g_signal_connect(gtk_tree_view_get_selection(GTK_TREE_VIEW(satlist->treeview)),
+                     "changed", G_CALLBACK(sat_list_sel_changed), satlist);
 
     satlist->swin = gtk_scrolled_window_new(NULL, NULL);
     gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(satlist->swin),
@@ -1317,6 +1322,24 @@ static void row_activated_cb(GtkTreeView * tree_view,
     }
 
     g_free(catnum);
+}
+
+/** A row was clicked: make that satellite the module target. */
+static void sat_list_sel_changed(GtkTreeSelection * selection, gpointer list)
+{
+    GtkTreeModel   *model;
+    GtkTreeIter     iter;
+    gint            catnum;
+    GtkWidget      *module;
+
+    if (!gtk_tree_selection_get_selected(selection, &model, &iter))
+        return;
+
+    gtk_tree_model_get(model, &iter, SAT_LIST_COL_CATNUM, &catnum, -1);
+
+    module = gtk_widget_get_ancestor(GTK_WIDGET(list), GTK_TYPE_SAT_MODULE);
+    if (module != NULL)
+        gtk_sat_module_select_sat(GTK_SAT_MODULE(module), catnum);
 }
 
 static void view_popup_menu(GtkWidget * treeview, GdkEventButton * event,
