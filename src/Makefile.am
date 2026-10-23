@@ -87,6 +87,7 @@ gpredict_SOURCES = \
     sat-log.c sat-log.h \
     sat-log-browser.c sat-log-browser.h \
     sat-monitor.c sat-monitor.h \
+    sat-notify.c sat-notify.h \
     sat-pass-dialogs.c sat-pass-dialogs.h \
     sat-pref.c sat-pref.h \
     sat-pref-general.c sat-pref-general.h \
@@ -96,6 +97,7 @@ gpredict_SOURCES = \
     sat-pref-tle.c sat-pref-tle.h \
     sat-pref-debug.c sat-pref-debug.h \
     sat-pref-modules.c sat-pref-modules.h \
+    sat-pref-notify.c sat-pref-notify.h \
     sat-pref-layout.c sat-pref-layout.h \
     sat-pref-refresh.c sat-pref-refresh.h \
     sat-pref-map-view.c sat-pref-map-view.h \

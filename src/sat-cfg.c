@@ -138,7 +138,10 @@ sat_cfg_bool_t  sat_cfg_bool[SAT_CFG_BOOL_NUM] = {
     {"TLE", "PROXY_AUTH", FALSE},
     {"TLE", "ADD_NEW_SATS", TRUE},
     {"LOG", "KEEP_LOG_FILES", FALSE},
-    {"PREDICT", "USE_REAL_T0", FALSE}
+    {"PREDICT", "USE_REAL_T0", FALSE},
+    {"MODULES", "POLAR_SHOW_MOTION", TRUE},
+    {"GLOBAL", "NOTIFY_ENABLE", TRUE},
+    {"GLOBAL", "NOTIFY_ALL", FALSE}
 };
 
 /** Array containing the integer configuration parameters */
@@ -214,7 +217,8 @@ sat_cfg_int_t   sat_cfg_int[SAT_CFG_INT_NUM] = {
     {"LOG", "CLEAN_AGE", 0},    /* 0 = Never clean */
     {"LOG", "LEVEL", 2},
     /* Same factory value as PREDICT/MINIMUM_ELEV. 0 disables the filter. */
-    {"MODULES", "PASS_MIN_EL", 5}
+    {"MODULES", "PASS_MIN_EL", 5},
+    {"GLOBAL", "NOTIFY_LEAD", 60}
 };
 
 /** Array containing the string configuration values */

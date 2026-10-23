@@ -62,6 +62,7 @@
 #include "predict-tools.h"
 #include "sat-cfg.h"
 #include "sat-log.h"
+#include "sat-notify.h"
 #include "sgpsdp/sgp4sdp4.h"
 #include "time-tools.h"
 
@@ -756,6 +757,7 @@ static void gtk_sat_module_update_sat(gpointer key, gpointer val,
         sat->los = find_los(sat, module->qth, daynum, maxdt);
 
     predict_calc(sat, module->qth, daynum);
+    sat_notify_consider(module, sat);
 }
 
 /** Module timeout callback. */

@@ -34,7 +34,7 @@
 static GtkWidget *nesw, *nwse, *senw, *swne;
 
 /* content selectors */
-static GtkWidget *satname, *satmarker, *qth, *next, *curs, *xtick;
+static GtkWidget *satname, *satmarker, *qth, *next, *curs, *xtick, *motion;
 
 /* colour selectors */
 static GtkWidget *bgd, *axis, *tick, *sat, *ssat, *track, *info;
@@ -139,6 +139,9 @@ static void reset_cb(GtkWidget * button, gpointer cfg)
         gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(xtick),
                                      sat_cfg_get_bool_def
                                      (SAT_CFG_BOOL_POL_SHOW_EXTRA_AZ_TICKS));
+        gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(motion),
+                                     sat_cfg_get_bool_def
+                                     (SAT_CFG_BOOL_POL_SHOW_MOTION));
 
         /* colours */
         cfg_rgba = sat_cfg_get_int_def(SAT_CFG_INT_POLAR_BGD_COL);
@@ -195,6 +198,8 @@ static void reset_cb(GtkWidget * button, gpointer cfg)
         gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(xtick),
                                      sat_cfg_get_bool
                                      (SAT_CFG_BOOL_POL_SHOW_EXTRA_AZ_TICKS));
+        gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(motion),
+                                     sat_cfg_get_bool(SAT_CFG_BOOL_POL_SHOW_MOTION));
 
         /* colours */
         cfg_rgba = sat_cfg_get_int(SAT_CFG_INT_POLAR_BGD_COL);
@@ -515,7 +520,8 @@ static void create_bool_selectors(GKeyFile * cfg, GtkBox * vbox)
     xtick = gtk_check_button_new_with_label(_("Extra Az Ticks"));
     gtk_widget_set_tooltip_text(xtick,
                                 _
-                                ("Show extra tick marks for every 30\302\260"));
+                                ("Show extra tick marks for every 30\302\260 "
+                                 "and label the elevation rings"));
     if (cfg != NULL)
     {
         gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(xtick),
@@ -532,6 +538,28 @@ static void create_bool_selectors(GKeyFile * cfg, GtkBox * vbox)
     }
     g_signal_connect(xtick, "toggled", G_CALLBACK(content_changed), NULL);
     gtk_grid_attach(GTK_GRID(grid), xtick, 2, 1, 1, 1);
+
+    /* Sky-motion arrow */
+    motion = gtk_check_button_new_with_label(_("Motion Arrow"));
+    gtk_widget_set_tooltip_text(motion,
+                                _("Show an arrow pointing along each "
+                                  "satellite's sky track"));
+    if (cfg != NULL)
+    {
+        gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(motion),
+                                     mod_cfg_get_bool(cfg,
+                                                      MOD_CFG_POLAR_SECTION,
+                                                      MOD_CFG_POLAR_SHOW_MOTION,
+                                                      SAT_CFG_BOOL_POL_SHOW_MOTION));
+    }
+    else
+    {
+        gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(motion),
+                                     sat_cfg_get_bool
+                                     (SAT_CFG_BOOL_POL_SHOW_MOTION));
+    }
+    g_signal_connect(motion, "toggled", G_CALLBACK(content_changed), NULL);
+    gtk_grid_attach(GTK_GRID(grid), motion, 0, 2, 1, 1);
 }
 
 /**
@@ -862,6 +890,10 @@ void sat_pref_polar_view_ok(GKeyFile * cfg)
                                    MOD_CFG_POLAR_SHOW_EXTRA_AZ_TICKS,
                                    gtk_toggle_button_get_active
                                    (GTK_TOGGLE_BUTTON(xtick)));
+            g_key_file_set_boolean(cfg, MOD_CFG_POLAR_SECTION,
+                                   MOD_CFG_POLAR_SHOW_MOTION,
+                                   gtk_toggle_button_get_active
+                                   (GTK_TOGGLE_BUTTON(motion)));
 
             /* colours */
             gtk_color_chooser_get_rgba(GTK_COLOR_CHOOSER(bgd), &gdk_rgba);
@@ -931,6 +963,9 @@ void sat_pref_polar_view_ok(GKeyFile * cfg)
             sat_cfg_set_bool(SAT_CFG_BOOL_POL_SHOW_EXTRA_AZ_TICKS,
                              gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON
                                                           (xtick)));
+            sat_cfg_set_bool(SAT_CFG_BOOL_POL_SHOW_MOTION,
+                             gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON
+                                                          (motion)));
 
             /* colours */
             gtk_color_chooser_get_rgba(GTK_COLOR_CHOOSER(bgd), &gdk_rgba);
@@ -993,6 +1028,9 @@ void sat_pref_polar_view_ok(GKeyFile * cfg)
                                   MOD_CFG_POLAR_SHOW_EXTRA_AZ_TICKS, NULL);
             g_key_file_remove_key(cfg,
                                   MOD_CFG_POLAR_SECTION,
+                                  MOD_CFG_POLAR_SHOW_MOTION, NULL);
+            g_key_file_remove_key(cfg,
+                                  MOD_CFG_POLAR_SECTION,
                                   MOD_CFG_POLAR_BGD_COL, NULL);
             g_key_file_remove_key(cfg,
                                   MOD_CFG_POLAR_SECTION,
@@ -1029,6 +1067,7 @@ void sat_pref_polar_view_ok(GKeyFile * cfg)
             sat_cfg_reset_bool(SAT_CFG_BOOL_POL_SHOW_NEXT_EV);
             sat_cfg_reset_bool(SAT_CFG_BOOL_POL_SHOW_CURS_TRACK);
             sat_cfg_reset_bool(SAT_CFG_BOOL_POL_SHOW_EXTRA_AZ_TICKS);
+            sat_cfg_reset_bool(SAT_CFG_BOOL_POL_SHOW_MOTION);
 
             /* colours */
             sat_cfg_reset_int(SAT_CFG_INT_POLAR_BGD_COL);

@@ -161,6 +161,11 @@ static void gtk_polar_view_init(GtkPolarView *polview, gpointer g_class)
     polview->refresh = 0;
     polview->counter = 0;
     polview->swap = 0;
+    polview->az_offset = 0;
+    polview->rotating = FALSE;
+    polview->rotate_angle = 0.0;
+    polview->scroll_acc = 0.0;
+    polview->showmotion = TRUE;
     polview->satname = FALSE;
     polview->satmarker = FALSE;
     polview->qthinfo = FALSE;
@@ -214,6 +219,13 @@ static void azel_to_xy(GtkPolarView *p, gdouble az, gdouble el, gfloat *x,
 
         return;
     }
+
+    /* extra rotation is clockwise, in tenths of a degree */
+    az += p->az_offset / 10.0;
+    if (az >= 360.0)
+        az = fmod(az, 360.0);
+    else if (az < 0.0)
+        az = fmod(az, 360.0) + 360.0;
 
     /* convert angles to radians */
     az = de2ra * az;
@@ -293,69 +305,106 @@ static void xy_to_azel(GtkPolarView *p, gfloat x, gfloat y, gfloat *az,
     default:
         break;
     }
+
+    *az -= p->az_offset / 10.0;
+    if (*az >= 360.0)
+        *az = fmod(*az, 360.0);
+    else if (*az < 0.0)
+        *az = fmod(*az, 360.0) + 360.0;
 }
 
-/* Transform pole coordinates. */
-static void correct_pole_coor(GtkPolarView *polv, polar_view_pole_t pole,
-                              gfloat *x, gfloat *y, gboolean *anchor_south,
-                              gboolean *anchor_east)
+/* Keep a rotation offset inside one full turn. */
+static gint norm_az_offset(gint tenths)
 {
-    *anchor_south = FALSE;
-    *anchor_east = FALSE;
+    tenths %= 3600;
+    if (tenths < 0)
+        tenths += 3600;
 
-    switch (pole)
-    {
-    case POLAR_VIEW_POLE_N:
-        if ((polv->swap == POLAR_VIEW_SENW) || (polv->swap == POLAR_VIEW_SWNE))
-        {
-            *y = *y + POLV_LINE_EXTRA;
-        }
-        else
-        {
-            *y = *y - POLV_LINE_EXTRA;
-            *anchor_south = TRUE;
-        }
-        break;
+    return tenths;
+}
 
-    case POLAR_VIEW_POLE_E:
-        if ((polv->swap == POLAR_VIEW_NWSE) || (polv->swap == POLAR_VIEW_SWNE))
-        {
-            *x = *x - POLV_LINE_EXTRA;
-            *anchor_east = TRUE;
-        }
-        else
-        {
-            *x = *x + POLV_LINE_EXTRA;
-        }
-        break;
+/* Push a compass label outside the circle and choose how to anchor it. */
+static void offset_compass_label(GtkPolarView *polv, gfloat *x, gfloat *y,
+                                 gboolean *vertical, gboolean *before)
+{
+    gfloat dx = *x - (gfloat)polv->cx;
+    gfloat dy = *y - (gfloat)polv->cy;
+    gfloat len = hypotf(dx, dy);
 
-    case POLAR_VIEW_POLE_S:
-        if ((polv->swap == POLAR_VIEW_SENW) || (polv->swap == POLAR_VIEW_SWNE))
-        {
-            *y = *y - POLV_LINE_EXTRA;
-            *anchor_south = TRUE;
-        }
-        else
-        {
-            *y = *y + POLV_LINE_EXTRA;
-        }
-        break;
+    if (len < 1.0f)
+        len = 1.0f;
 
-    case POLAR_VIEW_POLE_W:
-        if ((polv->swap == POLAR_VIEW_NWSE) || (polv->swap == POLAR_VIEW_SWNE))
-        {
-            *x = *x + POLV_LINE_EXTRA;
-        }
-        else
-        {
-            *x = *x - POLV_LINE_EXTRA;
-            *anchor_east = TRUE;
-        }
-        break;
+    *x += POLV_LINE_EXTRA * dx / len;
+    *y += POLV_LINE_EXTRA * dy / len;
 
-    default:
-        break;
-    }
+    /* The label sits off the nearest side of the circle. */
+    *vertical = fabsf(dy) >= fabsf(dx);
+    if (*vertical)
+        *before = dy < 0.0f;
+    else
+        *before = dx < 0.0f;
+}
+
+static void draw_compass_label(cairo_t *cr, PangoLayout *layout,
+                               GtkPolarView *polv, gdouble az, const gchar *text)
+{
+    gfloat x, y;
+    gboolean vertical, before;
+    gint tw, th;
+
+    azel_to_xy(polv, az, 0.0, &x, &y);
+    offset_compass_label(polv, &x, &y, &vertical, &before);
+    pango_layout_set_text(layout, text, -1);
+    pango_layout_get_pixel_size(layout, &tw, &th);
+
+    if (vertical)
+        cairo_move_to(cr, x - tw / 2.0, before ? y - th : y);
+    else
+        cairo_move_to(cr, before ? x - tw : x, y - th / 2.0);
+
+    pango_cairo_show_layout(cr, layout);
+}
+
+static void draw_el_label(cairo_t *cr, PangoLayout *layout, GtkPolarView *polv,
+                          gdouble el, const gchar *text)
+{
+    gfloat x, y;
+    gint tw, th;
+
+    azel_to_xy(polv, 45.0, el, &x, &y);
+    pango_layout_set_text(layout, text, -1);
+    pango_layout_get_pixel_size(layout, &tw, &th);
+    cairo_move_to(cr, x - tw / 2.0, y - th / 2.0);
+    pango_cairo_show_layout(cr, layout);
+}
+
+/* Arrow from the satellite toward where it will be a short time later. */
+static void draw_motion_arrow(cairo_t *cr, gdouble x0, gdouble y0, gdouble x1,
+                              gdouble y1)
+{
+    gdouble dx = x1 - x0;
+    gdouble dy = y1 - y0;
+    gdouble len = hypot(dx, dy);
+    gdouble ux, uy, px, py;
+
+    if (len < 1.0)
+        return;
+
+    ux = dx / len;
+    uy = dy / len;
+    px = -uy;
+    py = ux;
+
+    cairo_set_line_width(cr, 1.5);
+    cairo_move_to(cr, x0, y0);
+    cairo_line_to(cr, x1, y1);
+    cairo_stroke(cr);
+
+    cairo_move_to(cr, x1, y1);
+    cairo_line_to(cr, x1 - 8.0 * ux + 3.5 * px, y1 - 8.0 * uy + 3.5 * py);
+    cairo_line_to(cr, x1 - 8.0 * ux - 3.5 * px, y1 - 8.0 * uy - 3.5 * py);
+    cairo_close_path(cr);
+    cairo_fill(cr);
 }
 
 static gboolean on_draw(GtkWidget *widget, cairo_t *cr, gpointer data)
@@ -363,7 +412,6 @@ static gboolean on_draw(GtkWidget *widget, cairo_t *cr, gpointer data)
     GtkPolarView *polv = GTK_POLAR_VIEW(data);
     gdouble r, g, b, a;
     gfloat x, y;
-    gboolean anchor_south, anchor_east;
     PangoLayout *layout;
     PangoFontDescription *font_desc;
     gint tw, th;
@@ -414,45 +462,40 @@ static gboolean on_draw(GtkWidget *widget, cairo_t *cr, gpointer data)
     cairo_line_to(cr, polv->cx, polv->cy + polv->r + POLV_LINE_EXTRA);
     cairo_stroke(cr);
 
+    /* Extra azimuth ticks every 30 degrees, skipping the cardinal cross. */
+    if (polv->extratick && polv->r > 0)
+    {
+        for (i = 1; i < 12; i++)
+        {
+            gfloat x0, y0, x1, y1;
+            gdouble az = i * 30.0;
+
+            if (i % 3 == 0)
+                continue;
+
+            azel_to_xy(polv, az, 0.0, &x0, &y0);
+            x1 = polv->cx + (x0 - polv->cx) * (1.0f - 8.0f / polv->r);
+            y1 = polv->cy + (y0 - polv->cy) * (1.0f - 8.0f / polv->r);
+            cairo_move_to(cr, x1, y1);
+            cairo_line_to(cr, x0, y0);
+            cairo_stroke(cr);
+        }
+    }
+
     /* N/S/E/W labels */
     rgba_to_cairo(polv->col_tick, &r, &g, &b, &a);
     cairo_set_source_rgba(cr, r, g, b, a);
 
-    /* N label */
-    azel_to_xy(polv, 0.0, 0.0, &x, &y);
-    correct_pole_coor(polv, POLAR_VIEW_POLE_N, &x, &y, &anchor_south,
-                      &anchor_east);
-    pango_layout_set_text(layout, _("N"), -1);
-    pango_layout_get_pixel_size(layout, &tw, &th);
-    cairo_move_to(cr, x - tw / 2, anchor_south ? y - th : y);
-    pango_cairo_show_layout(cr, layout);
+    draw_compass_label(cr, layout, polv, 0.0, _("N"));
+    draw_compass_label(cr, layout, polv, 90.0, _("E"));
+    draw_compass_label(cr, layout, polv, 180.0, _("S"));
+    draw_compass_label(cr, layout, polv, 270.0, _("W"));
 
-    /* E label */
-    azel_to_xy(polv, 90.0, 0.0, &x, &y);
-    correct_pole_coor(polv, POLAR_VIEW_POLE_E, &x, &y, &anchor_south,
-                      &anchor_east);
-    pango_layout_set_text(layout, _("E"), -1);
-    pango_layout_get_pixel_size(layout, &tw, &th);
-    cairo_move_to(cr, anchor_east ? x - tw : x, y - th / 2);
-    pango_cairo_show_layout(cr, layout);
-
-    /* S label */
-    azel_to_xy(polv, 180.0, 0.0, &x, &y);
-    correct_pole_coor(polv, POLAR_VIEW_POLE_S, &x, &y, &anchor_south,
-                      &anchor_east);
-    pango_layout_set_text(layout, _("S"), -1);
-    pango_layout_get_pixel_size(layout, &tw, &th);
-    cairo_move_to(cr, x - tw / 2, anchor_south ? y - th : y);
-    pango_cairo_show_layout(cr, layout);
-
-    /* W label */
-    azel_to_xy(polv, 270.0, 0.0, &x, &y);
-    correct_pole_coor(polv, POLAR_VIEW_POLE_W, &x, &y, &anchor_south,
-                      &anchor_east);
-    pango_layout_set_text(layout, _("W"), -1);
-    pango_layout_get_pixel_size(layout, &tw, &th);
-    cairo_move_to(cr, anchor_east ? x - tw : x, y - th / 2);
-    pango_cairo_show_layout(cr, layout);
+    if (polv->extratick)
+    {
+        draw_el_label(cr, layout, polv, 30.0, "30\302\260");
+        draw_el_label(cr, layout, polv, 60.0, "60\302\260");
+    }
 
     /* Location name (if enabled) */
     if (polv->qthinfo && polv->qth)
@@ -499,8 +542,8 @@ static gboolean on_draw(GtkWidget *widget, cairo_t *cr, gpointer data)
         pango_layout_set_alignment(layout, PANGO_ALIGN_RIGHT);
         pango_layout_set_text(layout, polv->sel_text, -1);
         pango_layout_get_pixel_size(layout, &tw, &th);
-        cairo_move_to(cr, polv->cx + polv->r + 2 * POLV_LINE_EXTRA - tw,
-                      polv->cy + polv->r + POLV_LINE_EXTRA);
+        cairo_move_to(cr, 2.0 * polv->cx - tw - 4.0,
+                      2.0 * polv->cy - th - 4.0);
         pango_cairo_show_layout(cr, layout);
         pango_layout_set_alignment(layout, PANGO_ALIGN_LEFT);
     }
@@ -556,6 +599,18 @@ static gboolean on_draw(GtkWidget *widget, cairo_t *cr, gpointer data)
                 }
             }
 
+            /* Motion arrow sits under the marker so the position stays visible. */
+            if (polv->showmotion && obj->has_arrow)
+            {
+                if (obj->selected)
+                    rgba_to_cairo(polv->col_sat_sel, &r, &g, &b, &a);
+                else
+                    rgba_to_cairo(polv->col_sat, &r, &g, &b, &a);
+
+                cairo_set_source_rgba(cr, r, g, b, a);
+                draw_motion_arrow(cr, obj->x, obj->y, obj->arrow_x, obj->arrow_y);
+            }
+
             /* Draw satellite marker */
             if (polv->satmarker)
             {
@@ -594,6 +649,286 @@ static gboolean on_draw(GtkWidget *widget, cairo_t *cr, gpointer data)
     return FALSE;
 }
 
+#define MOTION_AHEAD_SEC 20.0
+#define MOTION_MIN_SPAN_DEG 0.05
+
+/* Angular distance on the sky between two azimuth/elevation pairs. */
+static gdouble sky_angle_deg(gdouble az1, gdouble el1, gdouble az2, gdouble el2)
+{
+    gdouble a1 = az1 * de2ra;
+    gdouble e1 = el1 * de2ra;
+    gdouble a2 = az2 * de2ra;
+    gdouble e2 = el2 * de2ra;
+    gdouble x1 = cos(e1) * sin(a1);
+    gdouble y1 = cos(e1) * cos(a1);
+    gdouble z1 = sin(e1);
+    gdouble x2 = cos(e2) * sin(a2);
+    gdouble y2 = cos(e2) * cos(a2);
+    gdouble z2 = sin(e2);
+    gdouble dot = x1 * x2 + y1 * y2 + z1 * z2;
+
+    if (dot > 1.0)
+        dot = 1.0;
+    if (dot < -1.0)
+        dot = -1.0;
+
+    return acos(dot) / de2ra;
+}
+
+/* Place the arrow tip from the stored look-ahead azimuth and elevation. */
+static void place_motion_arrow(GtkPolarView *polv, sat_obj_t *obj)
+{
+    gfloat x1, y1;
+    gdouble dx, dy, dist, length, fel;
+
+    obj->has_arrow = FALSE;
+
+    if (!polv->showmotion || !obj->has_ahead)
+        return;
+    if (obj->sky_rate * MOTION_AHEAD_SEC < MOTION_MIN_SPAN_DEG)
+        return;
+
+    fel = obj->ahead_el;
+    if (fel < 0.0)
+        fel = 0.0;
+
+    azel_to_xy(polv, obj->ahead_az, fel, &x1, &y1);
+    dx = x1 - obj->x;
+    dy = y1 - obj->y;
+    dist = hypot(dx, dy);
+    if (dist < 0.5)
+        return;
+
+    /* 0.05 deg over the look-ahead is 12 px; about 0.2 deg/s reaches 36 px. */
+    length = 12.0 + (obj->sky_rate * MOTION_AHEAD_SEC - MOTION_MIN_SPAN_DEG) *
+                        (24.0 / 4.0);
+    if (length < 12.0)
+        length = 12.0;
+    if (length > 36.0)
+        length = 36.0;
+
+    obj->arrow_x = obj->x + (gfloat)(dx / dist * length);
+    obj->arrow_y = obj->y + (gfloat)(dy / dist * length);
+    obj->has_arrow = TRUE;
+}
+
+/* Predict a point 20 s ahead so the arrow follows the pass, not the chart. */
+static void update_motion_arrow(GtkPolarView *polv, sat_obj_t *obj, sat_t *sat)
+{
+    sat_t *future;
+    gdouble span;
+    gdouble dt = MOTION_AHEAD_SEC / 86400.0;
+
+    obj->has_ahead = FALSE;
+    obj->has_arrow = FALSE;
+    obj->sky_rate = 0.0;
+
+    if (sat->el < 0.0 || polv->qth == NULL)
+        return;
+
+    /*
+     * Clone the live satellite, including its converted elements and the
+     * SGP4/SDP4 state. gtk_sat_data_copy_sat() runs select_ephemeris(), which
+     * converts those elements again and would point the arrow the wrong way.
+     * The clone is on the heap because gtk_sat_data_free_sat() releases it.
+     */
+    future = g_new(sat_t, 1);
+    *future = *sat;
+    future->name = g_strdup(sat->name);
+    future->nickname = g_strdup(sat->nickname);
+    future->website = g_strdup(sat->website);
+    predict_calc(future, polv->qth, polv->tstamp + dt);
+
+    span = sky_angle_deg(sat->az, sat->el, future->az, future->el);
+    obj->sky_rate = span / MOTION_AHEAD_SEC;
+
+    if (span >= MOTION_MIN_SPAN_DEG)
+    {
+        obj->has_ahead = TRUE;
+        obj->ahead_az = future->az;
+        obj->ahead_el = future->el;
+        place_motion_arrow(polv, obj);
+    }
+
+    gtk_sat_data_free_sat(future);
+}
+
+static void store_az_offset(GtkPolarView *polv)
+{
+    if (polv->cfgdata == NULL)
+        return;
+
+    g_key_file_set_integer(polv->cfgdata, MOD_CFG_POLAR_SECTION,
+                           MOD_CFG_POLAR_AZ_OFFSET, polv->az_offset);
+}
+
+static gint load_az_offset(GKeyFile *cfg)
+{
+    GError *error = NULL;
+    gint value = 0;
+
+    if (cfg != NULL &&
+        g_key_file_has_key(cfg, MOD_CFG_POLAR_SECTION, MOD_CFG_POLAR_AZ_OFFSET,
+                           &error))
+    {
+        value = g_key_file_get_integer(cfg, MOD_CFG_POLAR_SECTION,
+                                       MOD_CFG_POLAR_AZ_OFFSET, NULL);
+    }
+    g_clear_error(&error);
+
+    return norm_az_offset(value);
+}
+
+/* Clockwise screen rotation. Positive phi matches a positive azimuth offset. */
+static void rotate_xy(GtkPolarView *polv, gdouble *x, gdouble *y, gdouble phi)
+{
+    gdouble dx = *x - polv->cx;
+    gdouble dy = *y - polv->cy;
+    gdouble c = cos(phi);
+    gdouble s = sin(phi);
+
+    *x = polv->cx + c * dx - s * dy;
+    *y = polv->cy + s * dx + c * dy;
+}
+
+static void rotate_tracks(GtkPolarView *polv, gdouble phi)
+{
+    GHashTableIter iter;
+    gpointer key, value;
+
+    if (polv->obj == NULL || phi == 0.0)
+        return;
+
+    g_hash_table_iter_init(&iter, polv->obj);
+    while (g_hash_table_iter_next(&iter, &key, &value))
+    {
+        sat_obj_t *obj = SAT_OBJ(value);
+        GSList *node;
+        guint i;
+
+        for (node = obj->track_points; node != NULL; node = node->next)
+        {
+            gdouble *point = (gdouble *)node->data;
+
+            rotate_xy(polv, &point[0], &point[1], phi);
+        }
+
+        for (i = 0; i < TRACK_TICK_NUM; i++)
+        {
+            gdouble x, y;
+
+            if (obj->trtick[i].text[0] == '\0')
+                continue;
+
+            x = obj->trtick[i].x;
+            y = obj->trtick[i].y;
+            rotate_xy(polv, &x, &y, phi);
+            obj->trtick[i].x = (gfloat)x;
+            obj->trtick[i].y = (gfloat)y;
+        }
+    }
+}
+
+static void reposition_marker(gpointer key, gpointer value, gpointer data)
+{
+    sat_t *sat = SAT(value);
+    GtkPolarView *polv = GTK_POLAR_VIEW(data);
+    gint catnum = sat->tle.catnr;
+    sat_obj_t *obj;
+    gfloat x, y;
+
+    (void)key;
+
+    if (sat->el < 0.0 || polv->obj == NULL)
+        return;
+
+    obj = SAT_OBJ(g_hash_table_lookup(polv->obj, &catnum));
+    if (obj == NULL)
+        return;
+
+    azel_to_xy(polv, sat->az, sat->el, &x, &y);
+    obj->x = x;
+    obj->y = y;
+    place_motion_arrow(polv, obj);
+}
+
+static void reposition_sat(gpointer key, gpointer value, gpointer data)
+{
+    sat_t *sat = SAT(value);
+    GtkPolarView *polv = GTK_POLAR_VIEW(data);
+    gint catnum = sat->tle.catnr;
+    sat_obj_t *obj;
+
+    reposition_marker(key, value, data);
+
+    if (polv->obj == NULL)
+        return;
+
+    obj = SAT_OBJ(g_hash_table_lookup(polv->obj, &catnum));
+    if (obj != NULL && obj->showtrack && obj->pass != NULL)
+        gtk_polar_view_create_track(polv, obj, sat);
+}
+
+static void apply_offset_delta(GtkPolarView *polv, gint delta_tenths,
+                               gboolean rebuild)
+{
+    gdouble phi;
+
+    if (delta_tenths == 0 || polv->sats == NULL)
+        return;
+
+    phi = (delta_tenths / 10.0) * (G_PI / 180.0);
+    polv->az_offset = norm_az_offset(polv->az_offset + delta_tenths);
+
+    if (rebuild)
+        g_hash_table_foreach(polv->sats, reposition_sat, polv);
+    else
+    {
+        rotate_tracks(polv, phi);
+        g_hash_table_foreach(polv->sats, reposition_marker, polv);
+    }
+
+    gtk_widget_queue_draw(polv->canvas);
+}
+
+static gdouble pointer_angle(GtkPolarView *polv, gdouble x, gdouble y)
+{
+    return atan2(x - polv->cx, (gdouble)polv->cy - y);
+}
+
+static void reset_rotation_cb(GtkMenuItem *item, gpointer data)
+{
+    GtkPolarView *polv = GTK_POLAR_VIEW(data);
+
+    (void)item;
+
+    polv->az_offset = 0;
+    store_az_offset(polv);
+    if (polv->sats != NULL)
+        g_hash_table_foreach(polv->sats, reposition_sat, polv);
+    gtk_widget_queue_draw(polv->canvas);
+}
+
+static void popup_rotation_menu(GtkPolarView *polv, GdkEventButton *event)
+{
+    GtkWidget *menu;
+    GtkWidget *item;
+
+    menu = gtk_menu_new();
+    item = gtk_menu_item_new_with_label(_("Reset rotation"));
+    g_signal_connect(item, "activate", G_CALLBACK(reset_rotation_cb), polv);
+    gtk_menu_shell_append(GTK_MENU_SHELL(menu), item);
+    gtk_widget_show_all(menu);
+
+#if GTK_MINOR_VERSION < 22
+    gtk_menu_popup(GTK_MENU(menu), NULL, NULL, NULL, NULL,
+                   (event != NULL) ? event->button : 0,
+                   gdk_event_get_time((GdkEvent *)event));
+#else
+    gtk_menu_popup_at_pointer(GTK_MENU(menu), (GdkEvent *)event);
+#endif
+}
+
 static sat_obj_t *find_sat_at_pos(GtkPolarView *polv, gfloat mx, gfloat my)
 {
     GHashTableIter iter;
@@ -627,10 +962,27 @@ static gboolean on_button_press(GtkWidget *widget, GdkEventButton *event,
 
     (void)widget;
 
+    /* Ctrl+drag rotates the chart without selecting a satellite. */
+    if (event->button == 1 && (event->state & GDK_CONTROL_MASK) &&
+        event->type == GDK_BUTTON_PRESS)
+    {
+        polv->rotating = TRUE;
+        polv->rotate_angle = pointer_angle(polv, event->x, event->y);
+        return TRUE;
+    }
+
     obj = find_sat_at_pos(polv, event->x, event->y);
 
     if (obj == NULL)
+    {
+        if (event->button == 3 && event->type == GDK_BUTTON_PRESS)
+        {
+            popup_rotation_menu(polv, event);
+            return TRUE;
+        }
+
         return FALSE;
+    }
 
     switch (event->button)
     {
@@ -691,6 +1043,16 @@ static gboolean on_button_release(GtkWidget *widget, GdkEventButton *event,
 
     (void)widget;
 
+    if (event->button == 1 && polv->rotating)
+    {
+        polv->rotating = FALSE;
+        if (polv->sats != NULL)
+            g_hash_table_foreach(polv->sats, reposition_sat, polv);
+        store_az_offset(polv);
+        gtk_widget_queue_draw(polv->canvas);
+        return TRUE;
+    }
+
     if (event->button != 1)
         return FALSE;
 
@@ -729,6 +1091,25 @@ static gboolean on_motion_notify(GtkWidget *widget, GdkEventMotion *event,
 
     (void)widget;
 
+    if (polv->rotating && (event->state & GDK_BUTTON1_MASK))
+    {
+        gdouble angle = pointer_angle(polv, event->x, event->y);
+        gdouble delta = angle - polv->rotate_angle;
+        gint tenths;
+
+        while (delta > G_PI)
+            delta -= 2.0 * G_PI;
+        while (delta < -G_PI)
+            delta += 2.0 * G_PI;
+
+        tenths = (gint)lround(delta * (180.0 / G_PI) * 10.0);
+        if (tenths != 0)
+        {
+            apply_offset_delta(polv, tenths, FALSE);
+            polv->rotate_angle = angle;
+        }
+    }
+
     if (polv->cursinfo)
     {
         xy_to_azel(polv, event->x, event->y, &az, &el);
@@ -748,6 +1129,62 @@ static gboolean on_motion_notify(GtkWidget *widget, GdkEventMotion *event,
         gtk_widget_queue_draw(polv->canvas);
     }
 
+    return TRUE;
+}
+
+/* The wheel turns the chart in 5 degree steps. */
+static gboolean on_scroll(GtkWidget *widget, GdkEventScroll *event,
+                          gpointer data)
+{
+    GtkPolarView *polv = GTK_POLAR_VIEW(data);
+    gint tenths = 0;
+
+    (void)widget;
+
+    if (event->direction == GDK_SCROLL_UP || event->direction == GDK_SCROLL_LEFT)
+        tenths = -50;
+    else if (event->direction == GDK_SCROLL_DOWN ||
+             event->direction == GDK_SCROLL_RIGHT)
+        tenths = 50;
+    else if (event->direction == GDK_SCROLL_SMOOTH)
+    {
+        polv->scroll_acc += event->delta_y;
+        while (polv->scroll_acc >= 1.0)
+        {
+            tenths += 50;
+            polv->scroll_acc -= 1.0;
+        }
+        while (polv->scroll_acc <= -1.0)
+        {
+            tenths -= 50;
+            polv->scroll_acc += 1.0;
+        }
+    }
+
+    if (tenths != 0)
+    {
+        apply_offset_delta(polv, tenths, TRUE);
+        store_az_offset(polv);
+    }
+
+    return TRUE;
+}
+
+static gboolean on_query_tooltip(GtkWidget *widget, gint x, gint y,
+                                 gboolean keyboard, GtkTooltip *tooltip,
+                                 gpointer data)
+{
+    GtkPolarView *polv = GTK_POLAR_VIEW(data);
+    sat_obj_t *obj;
+
+    (void)widget;
+    (void)keyboard;
+
+    obj = find_sat_at_pos(polv, (gfloat)x, (gfloat)y);
+    if (obj == NULL || obj->tooltip == NULL)
+        return FALSE;
+
+    gtk_tooltip_set_markup(tooltip, obj->tooltip);
     return TRUE;
 }
 
@@ -799,6 +1236,7 @@ GtkWidget *gtk_polar_view_new(GKeyFile *cfgdata, GHashTable *sats, qth_t *qth)
     polv->swap = mod_cfg_get_int(cfgdata, MOD_CFG_POLAR_SECTION,
                                  MOD_CFG_POLAR_ORIENTATION,
                                  SAT_CFG_INT_POLAR_ORIENTATION);
+    polv->az_offset = load_az_offset(cfgdata);
 
     polv->satname = mod_cfg_get_bool(cfgdata, MOD_CFG_POLAR_SECTION,
                                      MOD_CFG_POLAR_SHOW_SAT_NAME,
@@ -822,6 +1260,10 @@ GtkWidget *gtk_polar_view_new(GKeyFile *cfgdata, GHashTable *sats, qth_t *qth)
     polv->extratick = mod_cfg_get_bool(cfgdata, MOD_CFG_POLAR_SECTION,
                                        MOD_CFG_POLAR_SHOW_EXTRA_AZ_TICKS,
                                        SAT_CFG_BOOL_POL_SHOW_EXTRA_AZ_TICKS);
+
+    polv->showmotion = mod_cfg_get_bool(cfgdata, MOD_CFG_POLAR_SECTION,
+                                        MOD_CFG_POLAR_SHOW_MOTION,
+                                        SAT_CFG_BOOL_POL_SHOW_MOTION);
 
     gtk_polar_view_load_showtracks(polv);
 
@@ -868,7 +1310,10 @@ GtkWidget *gtk_polar_view_new(GKeyFile *cfgdata, GHashTable *sats, qth_t *qth)
                                 POLV_DEFAULT_SIZE);
     gtk_widget_add_events(polv->canvas, GDK_POINTER_MOTION_MASK |
                                             GDK_BUTTON_PRESS_MASK |
-                                            GDK_BUTTON_RELEASE_MASK);
+                                            GDK_BUTTON_RELEASE_MASK |
+                                            GDK_BUTTON1_MOTION_MASK |
+                                            GDK_SCROLL_MASK |
+                                            GDK_SMOOTH_SCROLL_MASK);
 
     /* connect signals */
     g_signal_connect(polv->canvas, "draw", G_CALLBACK(on_draw), polv);
@@ -878,6 +1323,9 @@ GtkWidget *gtk_polar_view_new(GKeyFile *cfgdata, GHashTable *sats, qth_t *qth)
                      G_CALLBACK(on_button_press), polv);
     g_signal_connect(polv->canvas, "button-release-event",
                      G_CALLBACK(on_button_release), polv);
+    g_signal_connect(polv->canvas, "scroll-event", G_CALLBACK(on_scroll), polv);
+    g_signal_connect(polv->canvas, "query-tooltip",
+                     G_CALLBACK(on_query_tooltip), polv);
     g_signal_connect(polv->canvas, "size-allocate",
                      G_CALLBACK(size_allocate_cb), polv);
     g_signal_connect_after(polv->canvas, "realize",
@@ -1023,6 +1471,39 @@ void gtk_polar_view_update(GtkWidget *widget)
     }
 }
 
+static void refresh_sat_readout(GtkPolarView *polv, sat_obj_t *obj, sat_t *sat)
+{
+    gchar *losstr;
+    gchar *plain;
+
+    if (sat->los > 0.0)
+        losstr = los_time_to_str(polv, sat);
+    else
+        losstr = g_strdup(_("Always in range"));
+
+    plain = g_strdup_printf("%s\nAz %5.1f\302\260  El %4.1f\302\260  "
+                            "Sky %.2f\302\260/s\nRng %.0f km  RR %+.2f km/s\n%s",
+                            sat->nickname, sat->az, sat->el, obj->sky_rate,
+                            sat->range, sat->range_rate, losstr);
+
+    g_free(obj->tooltip);
+    obj->tooltip = g_markup_printf_escaped(
+        "<b>%s</b>\nAz: %5.1f\302\260\nEl: %5.1f\302\260\n"
+        "Range: %.0f km\nRate: %+.2f km/s\n%s\nSky: %.2f\302\260/s",
+        sat->nickname, sat->az, sat->el, sat->range, sat->range_rate, losstr,
+        obj->sky_rate);
+
+    if (obj->selected)
+    {
+        g_free(polv->sel_text);
+        polv->sel_text = plain;
+    }
+    else
+        g_free(plain);
+
+    g_free(losstr);
+}
+
 static void update_sat(gpointer key, gpointer value, gpointer data)
 {
     gint *catnum;
@@ -1031,7 +1512,6 @@ static void update_sat(gpointer key, gpointer value, gpointer data)
     sat_obj_t *obj = NULL;
     gfloat x, y;
     gdouble now;
-    gchar *losstr;
 
     (void)key;
 
@@ -1088,26 +1568,8 @@ static void update_sat(gpointer key, gpointer value, gpointer data)
             g_free(obj->nickname);
             obj->nickname = g_strdup(sat->nickname);
 
-            /* update LOS count down */
-            if (sat->los > 0.0)
-                losstr = los_time_to_str(polv, sat);
-            else
-                losstr =
-                    g_strdup_printf(_("%s\nAlways in range"), sat->nickname);
-
-            /* update tooltip */
-            g_free(obj->tooltip);
-            obj->tooltip = g_markup_printf_escaped(
-                "<b>%s</b>\nAz: %5.1f\302\260\nEl: %5.1f\302\260\n%s",
-                sat->nickname, sat->az, sat->el, losstr);
-
-            /* update selection info */
-            if (obj->selected)
-            {
-                g_free(polv->sel_text);
-                polv->sel_text =
-                    g_strdup_printf("%s\n%s", sat->nickname, losstr);
-            }
+            update_motion_arrow(polv, obj, sat);
+            refresh_sat_readout(polv, obj, sat);
 
             /* Check if pass needs update */
             if (obj->pass)
@@ -1140,7 +1602,6 @@ static void update_sat(gpointer key, gpointer value, gpointer data)
                 }
             }
 
-            g_free(losstr);
             g_free(catnum); // FIXME: why free here, what about else?
         }
         else
@@ -1168,10 +1629,8 @@ static void update_sat(gpointer key, gpointer value, gpointer data)
 
                 obj->istarget = FALSE;
 
-                /* create tooltip */
-                obj->tooltip = g_markup_printf_escaped(
-                    "<b>%s</b>\nAz: %5.1f\302\260\nEl: %5.1f\302\260\n",
-                    sat->nickname, sat->az, sat->el);
+                update_motion_arrow(polv, obj, sat);
+                refresh_sat_readout(polv, obj, sat);
 
                 /* get info about the current pass */
                 obj->pass = get_current_pass(sat, polv->qth, now);
