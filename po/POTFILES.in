@@ -50,6 +50,7 @@ src/sat-info.c
 src/sat-log-browser.c
 src/sat-log.c
 src/sat-monitor.c
+src/sat-notify.c
 src/sat-pass-dialogs.c
 src/sat-pref.c
 src/sat-pref-conditions.c
@@ -62,6 +63,7 @@ src/sat-pref-list-view.c
 src/sat-pref-map-view.c
 src/sat-pref-modules.c
 src/sat-pref-multi-pass.c
+src/sat-pref-notify.c
 src/sat-pref-polar-view.c
 src/sat-pref-predict.c
 src/sat-pref-qth.c

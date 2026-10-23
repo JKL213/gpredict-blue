@@ -59,6 +59,9 @@ typedef enum {
     SAT_CFG_BOOL_TLE_ADD_NEW,   /*!< Add new satellites to database. */
     SAT_CFG_BOOL_KEEP_LOG_FILES,        /*!< Whether to keep old log files */
     SAT_CFG_BOOL_PRED_USE_REAL_T0,      /*!< Whether to use current time as T0 fro predictions */
+    SAT_CFG_BOOL_POL_SHOW_MOTION,       /*!< Show sky-motion arrows on polar charts. */
+    SAT_CFG_BOOL_NOTIFY_ENABLE, /*!< Desktop notifications for AOS and LOS. */
+    SAT_CFG_BOOL_NOTIFY_ALL,    /*!< Notify for every satellite, not only the target. */
     SAT_CFG_BOOL_NUM            /*!< Number of boolean parameters */
 } sat_cfg_bool_e;
 
@@ -134,6 +137,7 @@ typedef enum {
     SAT_CFG_INT_TLE_LAST_UPDATE,        /*!< Date and time of last update, Unix seconds. */
     SAT_CFG_INT_LOG_CLEAN_AGE,  /*!< Age of log file to delete (seconds) */
     SAT_CFG_INT_LOG_LEVEL,      /*!< Logging level */
+    SAT_CFG_INT_NOTIFY_LEAD,    /*!< Seconds before AOS to send a warning. */
     SAT_CFG_INT_NUM             /*!< Number of integer parameters. */
 } sat_cfg_int_e;
 

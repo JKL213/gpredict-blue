@@ -444,6 +444,98 @@ static void update_track(GtkPolarPlot *pv)
     pv->track_points[2 * (num - 1) + 1] = (gdouble)y;
 }
 
+/* Arrow from the satellite toward where it will be a short time later. */
+static void draw_motion_arrow(cairo_t *cr, gdouble x0, gdouble y0, gdouble x1,
+                              gdouble y1)
+{
+    gdouble dx = x1 - x0;
+    gdouble dy = y1 - y0;
+    gdouble len = hypot(dx, dy);
+    gdouble ux, uy, px, py;
+
+    if (len < 1.0)
+        return;
+
+    ux = dx / len;
+    uy = dy / len;
+    px = -uy;
+    py = ux;
+
+    cairo_set_line_width(cr, 1.5);
+    cairo_move_to(cr, x0, y0);
+    cairo_line_to(cr, x1, y1);
+    cairo_stroke(cr);
+
+    cairo_move_to(cr, x1, y1);
+    cairo_line_to(cr, x1 - 8.0 * ux + 3.5 * px, y1 - 8.0 * uy + 3.5 * py);
+    cairo_line_to(cr, x1 - 8.0 * ux - 3.5 * px, y1 - 8.0 * uy - 3.5 * py);
+    cairo_close_path(cr);
+    cairo_fill(cr);
+}
+
+/* Point along the pass from the current target so the antenna can follow it. */
+static void draw_target_motion_arrow(cairo_t *cr, GtkPolarPlot *polv)
+{
+    gfloat tx, ty;
+    gdouble best = 1.0e12;
+    gint nearest = -1;
+    gint i;
+
+    if (!sat_cfg_get_bool(SAT_CFG_BOOL_POL_SHOW_MOTION))
+        return;
+    if (polv->target_az < 0.0 || polv->target_el < 0.0)
+        return;
+    if (polv->track_points == NULL || polv->track_count < 2)
+        return;
+
+    azel_to_xy(polv, polv->target_az, polv->target_el, &tx, &ty);
+
+    for (i = 0; i < polv->track_count; i++)
+    {
+        gdouble dx = polv->track_points[2 * i] - tx;
+        gdouble dy = polv->track_points[2 * i + 1] - ty;
+        gdouble dist2 = dx * dx + dy * dy;
+
+        if (dist2 < best)
+        {
+            best = dist2;
+            nearest = i;
+        }
+    }
+
+    for (i = nearest + 1; i < polv->track_count; i++)
+    {
+        gdouble dx = polv->track_points[2 * i] - tx;
+        gdouble dy = polv->track_points[2 * i + 1] - ty;
+        gdouble dist = hypot(dx, dy);
+
+        if (dist >= 12.0 || i == polv->track_count - 1)
+        {
+            gdouble length;
+
+            if (dist < 4.0)
+                return;
+
+            {
+                gdouble r, g, b, a;
+
+                rgba_to_cairo(polv->col_sat, &r, &g, &b, &a);
+                cairo_set_source_rgba(cr, r, g, b, a);
+            }
+
+            length = dist;
+            if (length < 12.0)
+                length = 12.0;
+            if (length > 36.0)
+                length = 36.0;
+
+            draw_motion_arrow(cr, tx, ty, tx + dx / dist * length,
+                              ty + dy / dist * length);
+            return;
+        }
+    }
+}
+
 static gboolean on_draw(GtkWidget *widget, cairo_t *cr, gpointer data)
 {
     GtkPolarPlot *polv = GTK_POLAR_PLOT(data);
@@ -633,6 +725,8 @@ static gboolean on_draw(GtkWidget *widget, cairo_t *cr, gpointer data)
 
         cairo_stroke(cr);
     }
+
+    draw_target_motion_arrow(cr, polv);
 
     pango_font_description_free(font_desc);
     g_object_unref(layout);

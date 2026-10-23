@@ -41,6 +41,13 @@ typedef struct {
     pass_t *pass;                        /* Details of the current pass. */
     gfloat x;                            /* X position of marker */
     gfloat y;                            /* Y position of marker */
+    gboolean has_ahead;                  /* Future sky position is valid. */
+    gdouble ahead_az;                    /* Azimuth a short time ahead [deg]. */
+    gdouble ahead_el;                    /* Elevation a short time ahead [deg]. */
+    gboolean has_arrow;                  /* Draw a motion arrow. */
+    gfloat arrow_x;                      /* Arrow tip, canvas X */
+    gfloat arrow_y;                      /* Arrow tip, canvas Y */
+    gdouble sky_rate;                    /* Sky angular rate [deg/s]. */
     gchar *nickname;                     /* Satellite nickname for label */
     gchar *tooltip;                      /* Tooltip text */
     GSList *track_points;                /* pairs of gdoubles: x,y */
@@ -110,6 +117,11 @@ struct _GtkPolarView {
 
     polar_view_swap_t swap;
 
+    gint az_offset;     /* Extra clockwise rotation, tenths of a degree. */
+    gboolean rotating;  /* Pointer drag is rotating the chart. */
+    gdouble rotate_angle; /* Last pointer angle while rotating [rad]. */
+    gdouble scroll_acc; /* Accumulated smooth-scroll distance. */
+
     gboolean satname;   /* Show satellite name. */
     gboolean satmarker; /* Show satellite marker. */
     gboolean qthinfo;   /* Show the QTH info. */
@@ -117,6 +129,7 @@ struct _GtkPolarView {
     gboolean cursinfo;  /* Track the mouse cursor. */
     gboolean extratick; /* Show extra ticks */
     gboolean showtrack; /* Automatically show sky tracks. */
+    gboolean showmotion; /* Show arrows along the sky track. */
     gboolean resize;    /* Flag indicating that the view has been resized. */
 
     gchar *font; /* Default font name */

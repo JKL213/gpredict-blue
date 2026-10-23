@@ -1,5 +1,8 @@
 Changes in version 2.7 (TBD)
 
+ - Polar view can be rotated with the mouse wheel or Ctrl+drag, and the offset is saved with the module
+ - Polar view shows azimuth ticks, elevation-ring labels, pass data for the selected satellite, and a sky-motion arrow for antenna tracking
+ - Desktop notifications for an upcoming AOS, AOS, and LOS of the selected satellite
  - Fixed bug causing the rotator position fields never to update after Engage (#423)
  - Fixed incorrect reading of mean motion field from TLE line2 (#426)
  - Increased radio and rotator timer limits to 30 seconds (#424)
