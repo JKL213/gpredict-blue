@@ -97,6 +97,10 @@ GSList *get_next_passes    (sat_t *sat, qth_t *qth, gdouble maxdt, guint num);
 /* future events */
 pass_t *get_pass           (sat_t *sat, qth_t *qth, gdouble start, gdouble maxdt);
 GSList *get_passes         (sat_t *sat, qth_t *qth, gdouble start, gdouble maxdt, guint num);
+pass_t *get_pass_with_min_el (sat_t *sat, qth_t *qth, gdouble start,
+                              gdouble maxdt, gdouble min_el);
+GSList *get_passes_with_min_el (sat_t *sat, qth_t *qth, gdouble start,
+                                gdouble maxdt, guint num, gdouble min_el);
 pass_t *get_current_pass   (sat_t *sat, qth_t *qth, gdouble start);
 pass_t *get_pass_no_min_el (sat_t *sat, qth_t *qth, gdouble start, gdouble maxdt);
 

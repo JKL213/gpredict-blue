@@ -20,11 +20,34 @@
 
 #include <gtk/gtk.h>
 
+#include "gtk-sat-module.h"
 #include "gtk-sat-popup-common.h"
 #include "orbit-tools.h"
 #include "predict-tools.h"
 #include "sat-cfg.h"
 #include "sat-pass-dialogs.h"
+#include "time-tools.h"
+
+/**
+ * Module elevation for a view inside a GtkSatModule.
+ *
+ * @return TRUE when origin belongs to a module. min_el is then that module's
+ *         setting (0 means every horizon crossing).
+ */
+static gboolean module_min_el(GtkWidget * origin, gint * min_el)
+{
+    GtkWidget      *modw;
+
+    if (origin == NULL)
+        return FALSE;
+
+    modw = gtk_widget_get_ancestor(origin, GTK_TYPE_SAT_MODULE);
+    if (modw == NULL)
+        return FALSE;
+
+    *min_el = gtk_sat_module_get_min_el(GTK_SAT_MODULE(modw));
+    return TRUE;
+}
 
 
 void add_pass_menu_items(GtkWidget * menu, sat_t * sat, qth_t * qth,
@@ -76,7 +99,7 @@ void show_current_pass_cb(GtkWidget * menuitem, gpointer data)
     tstamp = (gdouble *) (g_object_get_data(G_OBJECT(menuitem), "tstamp"));
 
     if (sat->el > 0.0)
-        show_next_pass_dialog(sat, qth, *tstamp, toplevel);
+        show_next_pass_dialog(sat, qth, *tstamp, toplevel, data);
 }
 
 void show_next_pass_cb(GtkWidget * menuitem, gpointer data)
@@ -92,11 +115,11 @@ void show_next_pass_cb(GtkWidget * menuitem, gpointer data)
     tstamp = (gdouble *) (g_object_get_data(G_OBJECT(menuitem), "tstamp"));
 
     if (sat->el < 0)
-        show_next_pass_dialog(sat, qth, *tstamp, toplevel);
+        show_next_pass_dialog(sat, qth, *tstamp, toplevel, data);
     else
         /*if the satellite is currently visible
            go to end of pass and then add 10 minutes */
-        show_next_pass_dialog(sat, qth, sat->los + 0.007, toplevel);
+        show_next_pass_dialog(sat, qth, sat->los + 0.007, toplevel, data);
 }
 
 void show_future_passes_cb(GtkWidget * menuitem, gpointer data)
@@ -111,27 +134,40 @@ void show_future_passes_cb(GtkWidget * menuitem, gpointer data)
     qth = (qth_t *) (g_object_get_data(G_OBJECT(menuitem), "qth"));
     tstamp = (gdouble *) (g_object_get_data(G_OBJECT(menuitem), "tstamp"));
 
-    show_future_passes_dialog(sat, qth, *tstamp, toplevel);
+    show_future_passes_dialog(sat, qth, *tstamp, toplevel, data);
 }
 
 void show_next_pass_dialog(sat_t * sat, qth_t * qth, gdouble tstamp,
-                           GtkWindow * toplevel)
+                           GtkWindow * toplevel, GtkWidget * origin)
 {
     GtkWidget      *dialog;
     pass_t         *pass;
+    gint            min_el = 0;
+    gboolean        have_module;
+    gdouble         maxdt;
+
+    have_module = module_min_el(origin, &min_el);
+    maxdt = sat_cfg_get_int(SAT_CFG_INT_PRED_LOOK_AHEAD);
 
     /* check whether sat actually has AOS */
     if (has_aos(sat, qth))
     {
-        if (sat_cfg_get_bool(SAT_CFG_BOOL_PRED_USE_REAL_T0))
+        if (have_module)
         {
-            pass = get_next_pass(sat, qth,
-                                 sat_cfg_get_int(SAT_CFG_INT_PRED_LOOK_AHEAD));
+            gdouble         start = tstamp;
+
+            if (sat_cfg_get_bool(SAT_CFG_BOOL_PRED_USE_REAL_T0))
+                start = get_current_daynum();
+
+            pass = get_pass_with_min_el(sat, qth, start, maxdt, min_el);
+        }
+        else if (sat_cfg_get_bool(SAT_CFG_BOOL_PRED_USE_REAL_T0))
+        {
+            pass = get_next_pass(sat, qth, maxdt);
         }
         else
         {
-            pass = get_pass(sat, qth, tstamp,
-                            sat_cfg_get_int(SAT_CFG_INT_PRED_LOOK_AHEAD));
+            pass = get_pass(sat, qth, tstamp, maxdt);
         }
 
         if (pass != NULL)
@@ -179,29 +215,39 @@ void show_next_pass_dialog(sat_t * sat, qth_t * qth, gdouble tstamp,
 
 
 void show_future_passes_dialog(sat_t * sat, qth_t * qth, gdouble tstamp,
-                               GtkWindow * toplevel)
+                               GtkWindow * toplevel, GtkWidget * origin)
 {
     GSList         *passes = NULL;
     GtkWidget      *dialog;
+    gint            min_el = 0;
+    gboolean        have_module;
+    gdouble         maxdt;
+    guint           num;
+
+    have_module = module_min_el(origin, &min_el);
+    maxdt = sat_cfg_get_int(SAT_CFG_INT_PRED_LOOK_AHEAD);
+    num = sat_cfg_get_int(SAT_CFG_INT_PRED_NUM_PASS);
 
     /* check wheather sat actially has AOS */
     if (has_aos(sat, qth))
     {
-
-        if (sat_cfg_get_bool(SAT_CFG_BOOL_PRED_USE_REAL_T0))
+        if (have_module)
         {
-            passes = get_next_passes(sat, qth,
-                                     sat_cfg_get_int
-                                     (SAT_CFG_INT_PRED_LOOK_AHEAD),
-                                     sat_cfg_get_int
-                                     (SAT_CFG_INT_PRED_NUM_PASS));
+            gdouble         start = tstamp;
+
+            if (sat_cfg_get_bool(SAT_CFG_BOOL_PRED_USE_REAL_T0))
+                start = get_current_daynum();
+
+            passes = get_passes_with_min_el(sat, qth, start, maxdt, num,
+                                            min_el);
+        }
+        else if (sat_cfg_get_bool(SAT_CFG_BOOL_PRED_USE_REAL_T0))
+        {
+            passes = get_next_passes(sat, qth, maxdt, num);
         }
         else
         {
-            passes = get_passes(sat, qth, tstamp,
-                                sat_cfg_get_int(SAT_CFG_INT_PRED_LOOK_AHEAD),
-                                sat_cfg_get_int(SAT_CFG_INT_PRED_NUM_PASS));
-
+            passes = get_passes(sat, qth, tstamp, maxdt, num);
         }
 
 

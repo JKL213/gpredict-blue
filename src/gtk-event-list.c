@@ -33,6 +33,7 @@
 #include "gtk-event-list-popup.h"
 #include "gtk-event-list.h"
 #include "gtk-sat-data.h"
+#include "gtk-sat-module.h"
 #include "locator.h"
 #include "mod-cfg-get-param.h"
 #include "orbit-tools.h"
@@ -125,6 +126,7 @@ static void view_popup_menu(GtkWidget *treeview, GdkEventButton *event,
                             gpointer list);
 static void row_activated_cb(GtkTreeView *tree_view, GtkTreePath *path,
                              GtkTreeViewColumn *column, gpointer list);
+static void event_list_sel_changed(GtkTreeSelection *selection, gpointer list);
 
 static GtkBoxClass *parent_class = NULL;
 
@@ -294,6 +296,8 @@ GtkWidget *gtk_event_list_new(GKeyFile *cfgdata, GHashTable *sats, qth_t *qth,
                      widget);
     g_signal_connect(evlist->treeview, "row-activated",
                      G_CALLBACK(row_activated_cb), widget);
+    g_signal_connect(gtk_tree_view_get_selection(GTK_TREE_VIEW(evlist->treeview)),
+                     "changed", G_CALLBACK(event_list_sel_changed), widget);
 
     evlist->swin = gtk_scrolled_window_new(NULL, NULL);
     gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(evlist->swin),
@@ -410,6 +414,9 @@ static gboolean event_list_update_sats(GtkTreeModel *model, GtkTreePath *path,
     guint *catnum;
     sat_t *sat;
     gdouble number, now;
+    gboolean visible;
+    gboolean in_pass;
+    gint min_el;
 
     (void)path;
 
@@ -436,37 +443,46 @@ static gboolean event_list_update_sats(GtkTreeModel *model, GtkTreePath *path,
     {
         /* update data */
         now = evlist->tstamp;
+        min_el = mod_cfg_get_int(evlist->cfgdata, MOD_CFG_EVENT_LIST_SECTION,
+                                 MOD_CFG_EVENT_LIST_MIN_EL,
+                                 SAT_CFG_INT_MODULE_MIN_EL);
 
-        if (sat->el > 0.0)
+        /* Above the horizon the next event is LOS. With a minimum elevation
+           the stored AOS belongs to the next pass that reaches it, which can
+           still be in the future while a lower pass is in progress. */
+        if (min_el > 0 && sat->aos > now)
+            in_pass = FALSE;
+        else
+            in_pass = (sat->el > 0.0);
+
+        if (in_pass)
         {
             if (sat->los > 0.0)
-            {
                 number = sat->los - now;
-            }
             else
-            {
-                number = -1.0; /* Sat is staionary or no event */
-            }
+                number = -1.0; /* Sat is stationary or no event */
+        }
+        else if (sat->aos > 0.0)
+        {
+            number = sat->aos - now;
         }
         else
         {
-            if (sat->aos > 0.0)
-            {
-                number = sat->aos - now;
-            }
-            else
-            {
-                number = -1.0; /* Sat is staionary or no event */
-            }
+            number = -1.0; /* Sat is stationary or no event */
         }
 
-        /* store new data */
+        /* The decay column is the tree-filter's visible flag. A positive
+           module elevation also hides satellites with no qualifying pass. */
+        visible = !decayed(sat);
+        if (min_el > 0 && sat->aos <= 0.0 && sat->los <= 0.0)
+            visible = FALSE;
+
         gtk_list_store_set(
             GTK_LIST_STORE(model), iter, EVENT_LIST_COL_AZ, sat->az,
-            EVENT_LIST_COL_EL, sat->el, EVENT_LIST_COL_EVT,
-            (sat->el >= 0) ? TRUE : FALSE, EVENT_LIST_COL_TIME, number,
-            EVENT_LIST_COL_DECAY, !decayed(sat), EVENT_LIST_COL_BOLD,
-            (sat->el > 0.0) ? PANGO_WEIGHT_BOLD : PANGO_WEIGHT_NORMAL, -1);
+            EVENT_LIST_COL_EL, sat->el, EVENT_LIST_COL_EVT, in_pass,
+            EVENT_LIST_COL_TIME, number, EVENT_LIST_COL_DECAY, visible,
+            EVENT_LIST_COL_BOLD,
+            in_pass ? PANGO_WEIGHT_BOLD : PANGO_WEIGHT_NORMAL, -1);
     }
 
     g_free(catnum);
@@ -735,6 +751,24 @@ static gboolean button_press_cb(GtkWidget *treeview, GdkEventButton *event,
     }
 
     return FALSE; /* we did not handle this */
+}
+
+/** A row was clicked: make that satellite the module target. */
+static void event_list_sel_changed(GtkTreeSelection *selection, gpointer list)
+{
+    GtkTreeModel *model;
+    GtkTreeIter iter;
+    gint catnum;
+    GtkWidget *module;
+
+    if (!gtk_tree_selection_get_selected(selection, &model, &iter))
+        return;
+
+    gtk_tree_model_get(model, &iter, EVENT_LIST_COL_CATNUM, &catnum, -1);
+
+    module = gtk_widget_get_ancestor(GTK_WIDGET(list), GTK_TYPE_SAT_MODULE);
+    if (module != NULL)
+        gtk_sat_module_select_sat(GTK_SAT_MODULE(module), catnum);
 }
 
 static void row_activated_cb(GtkTreeView *tree_view, GtkTreePath *path,

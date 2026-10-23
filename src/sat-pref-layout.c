@@ -48,7 +48,7 @@ static GtkWidget *thumb;
 
 
 /* the number of predefined layouts (+1 for custom). */
-#define PREDEF_NUM 10
+#define PREDEF_NUM 11
 
 /* Predefined layouts. */
 gchar          *predef_layout[PREDEF_NUM][3] = {
@@ -68,6 +68,8 @@ gchar          *predef_layout[PREDEF_NUM][3] = {
      N_("All views (wide)"), "gpredict-layout-07.png"},
     {"1;0;3;0;3;0;0;3;3;4;2;3;4;0;2;3;3;4;2;4",
      N_("Map, table, polar and single sat (wide)"), "gpredict-layout-08.png"},
+    {"5;0;2;0;1;3;0;2;1;2", N_("Transmitters and single sat"),
+     "gpredict-layout-99.png"},
     {"", N_("Custom"), "gpredict-layout-99.png"}
 };
 
@@ -298,8 +300,10 @@ static void create_layout_selector(GKeyFile * cfg, GtkGrid * table)
     gtk_widget_set_tooltip_text(gridstr,
                                 _("This entry holds the layout code for the "
                                   "module.\n"
-                                  "Consult the user manual for how to create "
-                                  "custom layouts using layout codes."));
+                                  "Each view is type;left;right;top;bottom.\n"
+                                  "Types: 0 table, 1 map, 2 polar, 3 single sat, "
+                                  "4 upcoming passes, 5 transmitters.\n"
+                                  "Consult the user manual for further details."));
 
     /* disable if it is a predefined layout */
     if (sel < PREDEF_NUM - 1)
