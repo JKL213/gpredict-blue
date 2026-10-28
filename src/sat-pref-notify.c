@@ -59,7 +59,9 @@ GtkWidget *sat_pref_notify_create(void)
     enable = gtk_check_button_new_with_label(_("Enable desktop notifications"));
     gtk_widget_set_tooltip_text(enable,
                                 _("Announce AOS and LOS through the desktop "
-                                  "notification service"));
+                                  "notification service. A module minimum "
+                                  "elevation limits this to passes that "
+                                  "reach it."));
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(enable),
                                  sat_cfg_get_bool(SAT_CFG_BOOL_NOTIFY_ENABLE));
     g_signal_connect(enable, "toggled", G_CALLBACK(changed), NULL);

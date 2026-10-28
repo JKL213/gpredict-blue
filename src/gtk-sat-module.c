@@ -693,18 +693,14 @@ static void gtk_sat_module_update_sat(gpointer key, gpointer val,
     /* get current time (real or simulated */
     daynum = module->tmgCdnum;
 
-    /* A module elevation above the horizon replaces the horizon search. */
+    /* A module elevation above the horizon replaces the horizon search.
+       Both paths fall through to the live position and the notification. */
     if (module->min_el > 0)
     {
         update_sat_pass(sat, module, daynum, maxdt);
-        predict_calc(sat, module->qth, daynum);
-        return;
     }
-
-    /* update events if the event counter has been reset
-       and the other requirements are fulfilled */
-    if ((GTK_SAT_MODULE(module)->event_count == 0) &&
-        has_aos(sat, module->qth))
+    else if ((GTK_SAT_MODULE(module)->event_count == 0) &&
+             has_aos(sat, module->qth))
     {
         /* Note that has_aos may return TRUE for geostationary sats
            whose orbit deviate from a true-geostat orbit, however,
@@ -714,47 +710,52 @@ static void gtk_sat_module_update_sat(gpointer key, gpointer val,
         sat->aos = find_aos(sat, module->qth, daynum, maxdt);
         sat->los = find_los(sat, module->qth, daynum, maxdt);
     }
-    /*
-       Update AOS and LOS for this satellite if it was known and is before
-       the current time.
 
-       daynum is the current time in the module.
+    /* The elevation filter already stored the next qualifying pass. */
+    if (module->min_el <= 0)
+    {
+        /*
+           Update AOS and LOS for this satellite if it was known and is before
+           the current time.
 
-       The conditional aos < daynum is merely saying that aos occurred
-       in the past. Therefore it cannot be the next event or aos/los
-       for that satellite.
+           daynum is the current time in the module.
 
-       The conditional aos > 0.0 is a short hand for saying that the
-       aos was successfully computed before. find_aos returns 0.0 when it
-       cannot find an AOS.
+           The conditional aos < daynum is merely saying that aos occurred
+           in the past. Therefore it cannot be the next event or aos/los
+           for that satellite.
 
-       This code should not execute find_aos(los) if the conditional before
-       is triggered as the newly computed aos(los) should either be in
-       the future (aos > daynum) or (aos == 0 ).
+           The conditional aos > 0.0 is a short hand for saying that the
+           aos was successfully computed before. find_aos returns 0.0 when it
+           cannot find an AOS.
 
-       Single sat/list/event/map views all use these values and they
-       should be up to date.
+           This code should not execute find_aos(los) if the conditional before
+           is triggered as the newly computed aos(los) should either be in
+           the future (aos > daynum) or (aos == 0 ).
 
-       The above code is still required for dealing with circumstances
-       where the qth moves from someplace where the qth can have an AOS and
-       where qth does not and for satellites in parking orbits where the
-       AOS may be further than maxdt out results in aos==0.0 until the
-       next aos is closer than maxdt. It also prevents the aos from
-       being computed every pass through the module for the parking orbits.
+           Single sat/list/event/map views all use these values and they
+           should be up to date.
 
-       To be completely correct, when time can move forward and backwards
-       as it can with the time controller, the time the aos/los was
-       computed should be stored and associated with aos/los. That way
-       if daynum <time_computed, the aos can be recomputed as there is
-       no assurance that the current stored aos is the next aos. As a
-       practical matter the above code handles time reversing acceptably
-       for most circumstances.
-     */
-    if (sat->aos > 0 && sat->aos < daynum)
-        sat->aos = find_aos(sat, module->qth, daynum, maxdt);
+           The above code is still required for dealing with circumstances
+           where the qth moves from someplace where the qth can have an AOS and
+           where qth does not and for satellites in parking orbits where the
+           AOS may be further than maxdt out results in aos==0.0 until the
+           next aos is closer than maxdt. It also prevents the aos from
+           being computed every pass through the module for the parking orbits.
 
-    if (sat->los > 0 && sat->los < daynum)
-        sat->los = find_los(sat, module->qth, daynum, maxdt);
+           To be completely correct, when time can move forward and backwards
+           as it can with the time controller, the time the aos/los was
+           computed should be stored and associated with aos/los. That way
+           if daynum <time_computed, the aos can be recomputed as there is
+           no assurance that the current stored aos is the next aos. As a
+           practical matter the above code handles time reversing acceptably
+           for most circumstances.
+         */
+        if (sat->aos > 0 && sat->aos < daynum)
+            sat->aos = find_aos(sat, module->qth, daynum, maxdt);
+
+        if (sat->los > 0 && sat->los < daynum)
+            sat->los = find_los(sat, module->qth, daynum, maxdt);
+    }
 
     predict_calc(sat, module->qth, daynum);
     sat_notify_consider(module, sat);

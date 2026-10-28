@@ -20,36 +20,54 @@
 
 #define NOTIFY_EXPIRE_MS 7000
 
-static GHashTable *prev_el = NULL;
+static GHashTable *prev_in_pass = NULL;
 static GHashTable *sent = NULL;
 static GDBusProxy *proxy = NULL;
 static gboolean unavailable = FALSE;
 
-static void remember_el(gint catnum, gdouble el, gdouble *previous,
-                        gboolean *have_previous)
+static void remember_in_pass(gint catnum, gboolean in_pass, gboolean *previous,
+                             gboolean *have_previous)
 {
     gint *key;
-    gdouble *slot;
+    gint *slot;
 
-    if (prev_el == NULL)
-        prev_el = g_hash_table_new_full(g_int_hash, g_int_equal, g_free, g_free);
+    if (prev_in_pass == NULL)
+        prev_in_pass =
+            g_hash_table_new_full(g_int_hash, g_int_equal, g_free, g_free);
 
     key = g_new(gint, 1);
     *key = catnum;
-    slot = g_hash_table_lookup(prev_el, key);
+    slot = g_hash_table_lookup(prev_in_pass, key);
     if (slot == NULL)
     {
-        slot = g_new(gdouble, 1);
-        *slot = el;
-        g_hash_table_insert(prev_el, key, slot);
+        slot = g_new(gint, 1);
+        *slot = in_pass ? 1 : 0;
+        g_hash_table_insert(prev_in_pass, key, slot);
         *have_previous = FALSE;
         return;
     }
 
     g_free(key);
-    *previous = *slot;
-    *slot = el;
+    *previous = (*slot != 0);
+    *slot = in_pass ? 1 : 0;
     *have_previous = TRUE;
+}
+
+/* Same membership as the event list. The minimum elevation keeps a lower
+   pass quiet, including one that is above the horizon while the next
+   qualifying AOS is still ahead, and a satellite with no such pass. */
+static gboolean in_selected_pass(GtkSatModule *module, sat_t *sat, gdouble now)
+{
+    if (sat->el <= 0.0)
+        return FALSE;
+    if (module->min_el <= 0)
+        return TRUE;
+    if (sat->aos <= 0.0 && sat->los <= 0.0)
+        return FALSE;
+    if (sat->aos > now)
+        return FALSE;
+
+    return TRUE;
 }
 
 static gboolean prune_sent(gpointer key, gpointer value, gpointer data)
@@ -194,8 +212,9 @@ static gchar *countdown_text(gdouble seconds)
 
 void sat_notify_consider(GtkSatModule *module, sat_t *sat)
 {
-    gdouble previous = 0.0;
+    gboolean previous = FALSE;
     gboolean have_previous = FALSE;
+    gboolean in_pass;
     gboolean realtime;
     gboolean selected_only;
     const gchar *label;
@@ -205,7 +224,9 @@ void sat_notify_consider(GtkSatModule *module, sat_t *sat)
     if (module == NULL || sat == NULL || decayed(sat))
         return;
 
-    remember_el(sat->tle.catnr, sat->el, &previous, &have_previous);
+    now = module->tmgCdnum;
+    in_pass = in_selected_pass(module, sat, now);
+    remember_in_pass(sat->tle.catnr, in_pass, &previous, &have_previous);
 
     realtime = (module->throttle == 1);
     if (!realtime || !have_previous)
@@ -221,7 +242,6 @@ void sat_notify_consider(GtkSatModule *module, sat_t *sat)
     if (label == NULL)
         label = _("satellite");
 
-    now = module->tmgCdnum;
     lead = sat_cfg_get_int(SAT_CFG_INT_NOTIFY_LEAD);
     if (lead < 0)
         lead = 0;
@@ -245,7 +265,7 @@ void sat_notify_consider(GtkSatModule *module, sat_t *sat)
         }
     }
 
-    if (previous < 0.0 && sat->el >= 0.0)
+    if (!previous && in_pass)
     {
         gdouble stamp = (sat->aos > 0.0) ? sat->aos : now;
         gchar *summary = g_strdup_printf(_("AOS: %s"), label);
@@ -258,9 +278,11 @@ void sat_notify_consider(GtkSatModule *module, sat_t *sat)
         g_free(summary);
     }
 
-    if (previous >= 0.0 && sat->el < 0.0)
+    if (previous && !in_pass)
     {
-        gdouble stamp = (sat->los > 0.0) ? sat->los : now;
+        /* A refreshed pass can already point at the next LOS. Keep this
+           departure from consuming that later event. */
+        gdouble stamp = (sat->los > 0.0 && sat->los <= now) ? sat->los : now;
         gchar *summary = g_strdup_printf(_("LOS: %s"), label);
         gchar *body = g_strdup_printf(_("%s has set."), label);
 
