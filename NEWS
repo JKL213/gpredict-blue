@@ -1,5 +1,6 @@
 Changes in version 2.7 (TBD)
 
+ - Fixed sky tracks drifting or leaving the polar view when the window is resized
  - Polar view can be rotated with the mouse wheel or Ctrl+drag, and the offset is saved with the module
  - Polar view shows azimuth ticks, elevation-ring labels, pass data for the selected satellite, and a sky-motion arrow for antenna tracking
  - Desktop notifications for an upcoming AOS, AOS, and LOS of the selected satellite

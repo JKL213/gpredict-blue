@@ -46,6 +46,7 @@
 #define POLV_LINE_EXTRA 5
 
 static void update_sat(gpointer key, gpointer value, gpointer data);
+static void update_track(gpointer key, gpointer value, gpointer data);
 
 static GtkBoxClass *parent_class = NULL;
 
@@ -1337,6 +1338,18 @@ GtkWidget *gtk_polar_view_new(GKeyFile *cfgdata, GHashTable *sats, qth_t *qth)
     return GTK_WIDGET(polv);
 }
 
+/* Recreate sky-track pixel coordinates after geometry changes (e.g. resize). */
+static void update_track(gpointer key, gpointer value, gpointer data)
+{
+    sat_obj_t *obj = SAT_OBJ(value);
+    GtkPolarView *pv = GTK_POLAR_VIEW(data);
+
+    (void)key;
+
+    if (obj != NULL && obj->showtrack && obj->pass != NULL)
+        gtk_polar_view_create_track(pv, obj, NULL);
+}
+
 static void update_polv_size(GtkPolarView *polv)
 {
     GtkAllocation allocation;
@@ -1350,8 +1363,15 @@ static void update_polv_size(GtkPolarView *polv)
         polv->cx = allocation.width / 2;
         polv->cy = allocation.height / 2;
 
-        /* Update satellite positions */
+        /* Update satellite marker positions for the new scale */
         g_hash_table_foreach(polv->sats, update_sat, polv);
+
+        /* Sky tracks are stored as absolute canvas pixels; rebuild them
+         * from Az/El so they stay aligned with the resized chart. */
+        if (polv->obj != NULL)
+            g_hash_table_foreach(polv->obj, update_track, polv);
+
+        gtk_widget_queue_draw(polv->canvas);
     }
 }
 
