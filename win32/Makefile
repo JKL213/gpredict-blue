@@ -64,6 +64,7 @@ GPREDICTSRC = \
 	first-time.c \
 	gpredict-help.c \
 	gpredict-utils.c \
+	gtk-antenna-view.c \
 	gtk-azel-plot.c \
 	gtk-event-list.c \
 	gtk-event-list-popup.c \

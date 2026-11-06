@@ -4,6 +4,7 @@ src/compat.c
 src/first-time.c
 src/gpredict-help.c
 src/gpredict-utils.c
+src/gtk-antenna-view.c
 src/gtk-azel-plot.c
 src/gtk-event-list.c
 src/gtk-freq-knob.c

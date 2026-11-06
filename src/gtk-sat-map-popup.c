@@ -31,6 +31,7 @@
 #include <gtk/gtk.h>
 
 #include "config-keys.h"
+#include "gtk-antenna-view.h"
 #include "sat-cfg.h"
 #include "sat-log.h"
 #include "gtk-sat-data.h"
@@ -80,6 +81,13 @@ void gtk_sat_map_popup_exec(sat_t * sat, qth_t * qth,
     g_signal_connect(menuitem, "activate", G_CALLBACK(show_sat_info_menu_cb),
                      toplevel);
 
+    gtk_menu_shell_append(GTK_MENU_SHELL(menu), menuitem);
+
+    menuitem = gtk_menu_item_new_with_label(_("Antenna view"));
+    g_object_set_data(G_OBJECT(menuitem), "sat", sat);
+    g_object_set_data(G_OBJECT(menuitem), "qth", qth);
+    g_signal_connect(menuitem, "activate", G_CALLBACK(show_antenna_view_cb),
+                     toplevel);
     gtk_menu_shell_append(GTK_MENU_SHELL(menu), menuitem);
 
     /* separator */

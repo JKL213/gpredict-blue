@@ -6448,3 +6448,58 @@ msgstr "%s: Bereit um die Transponderliste von %s abzurufen"
 #~ "USA.\n"
 #~ "\n"
 #~ "schreiben.\n"
+
+msgid "Antenna view"
+msgstr "Antennenansicht"
+
+msgid "Antenna"
+msgstr "Antenne"
+
+msgid "Follow satellite"
+msgstr "Satellit verfolgen"
+
+msgid "Reset view"
+msgstr "Ansicht zurücksetzen"
+
+msgid "LPDA"
+msgstr "LPDA"
+
+msgid "V-dipole"
+msgstr "V-Dipol"
+
+msgid "Discovery Dish"
+msgstr "Discovery Dish"
+
+msgid "Below the horizon"
+msgstr "Unter dem Horizont"
+
+msgid "Inside the main lobe"
+msgstr "In der Hauptkeule"
+
+msgid "Near the lobe edge"
+msgstr "Am Keulenrand"
+
+msgid "Outside the main lobe"
+msgstr "Außerhalb der Hauptkeule"
+
+msgid "offset %.0f    beam %.0f"
+msgstr "Versatz %.0f    Keule %.0f"
+
+msgid "%s    Az %.0f    El %.0f    %.0f km    offset %.0f    beam %.0f"
+msgstr "%s    Az %.0f    El %.0f    %.0f km    Versatz %.0f    Keule %.0f"
+
+msgid "%s    Az %.0f    El %.0f"
+msgstr "%s    Az %.0f    El %.0f"
+
+msgid "Turn the heading until the pass lies in the wide lobe. The V stays horizontal."
+msgstr "Drehe die Öffnung, bis der Überflug in der breiten Keule liegt. Das V bleibt waagerecht."
+
+msgid "Keep the satellite inside the narrow cone. The faint ring is the first sidelobe."
+msgstr "Halte den Satelliten in der schmalen Keule. Der schwache Ring ist die erste Nebenkeule."
+
+msgid "Point the short-element end at the satellite. The blue cone is the -3 dB lobe."
+msgstr "Richte das kurze Ende auf den Satelliten. Der blaue Kegel ist die -3-dB-Keule."
+
+msgid "Drag to rotate. Scroll to zoom. Double-click to reset."
+msgstr "Ziehen dreht die Ansicht. Das Mausrad zoomt. Ein Doppelklick setzt zurück."
+
