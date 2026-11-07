@@ -100,7 +100,6 @@ int main(int argc, char *argv[])
     GOptionContext *context;
     guint           error = 0;
 
-
 #ifdef ENABLE_NLS
     bindtextdomain(PACKAGE, PACKAGE_LOCALE_DIR);
     bind_textdomain_codeset(PACKAGE, "UTF-8");

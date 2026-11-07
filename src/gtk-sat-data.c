@@ -3,7 +3,6 @@
 
   Copyright (C)  2001-2009  Alexandru Csete, OZ9AEC.
 
-  Authors: Jan Koch DN9JUR
            Daniel Estevez <daniel@destevez.net>
 
   Comments, questions and bugreports should be submitted via

@@ -3,7 +3,6 @@
 
   Copyright (C)  2001-2017  Alexandru Csete, OZ9AEC.
 
-  Authors: Jan Koch DN9JUR
            Charles Suprin  <hamaa1vs@gmail.com>
 
   This program is free software; you can redistribute it and/or modify

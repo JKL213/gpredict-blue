@@ -127,8 +127,8 @@ gpredict_SOURCES = \
 ##gpredict_LDADD = ./sgpsdp/libsgp4sdp4.a @PACKAGE_LIBS@
 gpredict_LDADD = @PACKAGE_LIBS@
 
-check_PROGRAMS = test-layout-code
-TESTS = test-layout-code
+check_PROGRAMS = test-layout-code test-asset-paths
+TESTS = test-layout-code test-asset-paths
 
 test_layout_code_SOURCES = \
     test-layout-code.c \
@@ -136,8 +136,15 @@ test_layout_code_SOURCES = \
 
 test_layout_code_LDADD = @PACKAGE_LIBS@
 
+test_asset_paths_SOURCES = \
+    test-asset-paths.c \
+    compat.c
+
+test_asset_paths_LDADD = @PACKAGE_LIBS@
+
 EXTRA_DIST = \
-    test-layout-code.c
+    test-layout-code.c \
+    test-asset-paths.c
 
 ## $(INTLLIBS)
 

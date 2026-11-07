@@ -31,6 +31,117 @@
 
 #include "compat.h"
 
+static gchar *cached_pixmaps_dir;
+static gchar *cached_package_share_dir;
+
+static gboolean asset_probe_pixmaps(const gchar *pixmaps_dir)
+{
+    gchar    *path;
+    gboolean  ok;
+
+    path = g_build_filename(pixmaps_dir, "maps", "earth_800.png", NULL);
+    ok = g_file_test(path, G_FILE_TEST_EXISTS);
+    g_free(path);
+    return ok;
+}
+
+static gboolean asset_probe_data_root(const gchar *share_dir)
+{
+    gchar    *path;
+    gboolean  ok;
+
+    path = g_build_filename(share_dir, "data", "Amateur.mod", NULL);
+    ok = g_file_test(path, G_FILE_TEST_EXISTS);
+    g_free(path);
+    return ok;
+}
+
+static gchar *exe_based_source_root(void)
+{
+#ifdef G_OS_UNIX
+    gchar *exe;
+    gchar *bindir;
+    gchar *root = NULL;
+    gchar *pixmaps;
+
+    exe = g_file_read_link("/proc/self/exe", NULL);
+    if (exe == NULL) {
+        return NULL;
+    }
+
+    bindir = g_path_get_dirname(exe);
+    g_free(exe);
+
+    if (g_strcmp0(g_path_get_basename(bindir), ".libs") == 0) {
+        gchar *srcdir = g_path_get_dirname(bindir);
+
+        if (g_strcmp0(g_path_get_basename(srcdir), "src") == 0) {
+            root = g_path_get_dirname(srcdir);
+        }
+        g_free(srcdir);
+    } else if (g_strcmp0(g_path_get_basename(bindir), "src") == 0) {
+        root = g_path_get_dirname(bindir);
+    }
+
+    g_free(bindir);
+
+    if (root == NULL) {
+        return NULL;
+    }
+
+    pixmaps = g_build_filename(root, "pixmaps", NULL);
+    if (!asset_probe_pixmaps(pixmaps) || !asset_probe_data_root(root)) {
+        g_free(pixmaps);
+        g_free(root);
+        return NULL;
+    }
+
+    g_free(pixmaps);
+    return root;
+#else
+    return NULL;
+#endif
+}
+
+static void resolve_install_paths(void)
+{
+    const gchar *env_pix;
+    const gchar *env_data;
+    gchar       *root;
+
+    if (cached_pixmaps_dir != NULL) {
+        return;
+    }
+
+    env_pix = g_getenv("GPREDICT_PIXMAPS_DIR");
+    if (env_pix != NULL && env_pix[0] != '\0' &&
+        asset_probe_pixmaps(env_pix)) {
+        cached_pixmaps_dir = g_strdup(env_pix);
+        env_data = g_getenv("GPREDICT_DATA_DIR");
+        cached_package_share_dir =
+            g_strdup((env_data != NULL && env_data[0] != '\0') ? env_data :
+                     PACKAGE_DATA_DIR);
+        return;
+    }
+
+    if (asset_probe_pixmaps(PACKAGE_PIXMAPS_DIR) &&
+        asset_probe_data_root(PACKAGE_DATA_DIR)) {
+        cached_pixmaps_dir = g_strdup(PACKAGE_PIXMAPS_DIR);
+        cached_package_share_dir = g_strdup(PACKAGE_DATA_DIR);
+        return;
+    }
+
+    root = exe_based_source_root();
+    if (root != NULL) {
+        cached_pixmaps_dir = g_build_filename(root, "pixmaps", NULL);
+        cached_package_share_dir = g_strdup(root);
+        return;
+    }
+
+    cached_pixmaps_dir = g_strdup(PACKAGE_PIXMAPS_DIR);
+    cached_package_share_dir = g_strdup(PACKAGE_DATA_DIR);
+}
+
 /*
  * Get data directory.
  *
@@ -43,9 +154,12 @@ gchar *get_data_dir()
     gchar *dir = NULL;
 
 #ifdef G_OS_UNIX
-    char *data_dir = getenv("GPREDICT_DATA_DIR");
-    dir = g_strconcat(data_dir ? data_dir : PACKAGE_DATA_DIR, G_DIR_SEPARATOR_S,
-                      "data", NULL);
+    const gchar *data_dir = g_getenv("GPREDICT_DATA_DIR");
+
+    resolve_install_paths();
+    dir =
+        g_strconcat(data_dir != NULL && data_dir[0] != '\0' ? data_dir :
+                    cached_package_share_dir, G_DIR_SEPARATOR_S, "data", NULL);
 #else
 #ifdef G_OS_WIN32
     gchar *buff = g_win32_get_package_installation_directory_of_module(NULL);
@@ -90,7 +204,8 @@ gchar *get_maps_dir()
     gchar *dir = NULL;
 
 #ifdef G_OS_UNIX
-    dir = g_strconcat(PACKAGE_PIXMAPS_DIR, G_DIR_SEPARATOR_S, "maps", NULL);
+    resolve_install_paths();
+    dir = g_strconcat(cached_pixmaps_dir, G_DIR_SEPARATOR_S, "maps", NULL);
 #else
 #ifdef G_OS_WIN32
     gchar *buff = g_win32_get_package_installation_directory_of_module(NULL);
@@ -137,7 +252,8 @@ gchar *get_logo_dir()
     gchar *dir = NULL;
 
 #ifdef G_OS_UNIX
-    dir = g_strconcat(PACKAGE_PIXMAPS_DIR, G_DIR_SEPARATOR_S, "logos", NULL);
+    resolve_install_paths();
+    dir = g_strconcat(cached_pixmaps_dir, G_DIR_SEPARATOR_S, "logos", NULL);
 #else
 #ifdef G_OS_WIN32
     gchar *buff = g_win32_get_package_installation_directory_of_module(NULL);
@@ -164,7 +280,8 @@ gchar *get_icon_dir()
     gchar *dir = NULL;
 
 #ifdef G_OS_UNIX
-    dir = g_strconcat(PACKAGE_PIXMAPS_DIR, G_DIR_SEPARATOR_S, "icons", NULL);
+    resolve_install_paths();
+    dir = g_strconcat(cached_pixmaps_dir, G_DIR_SEPARATOR_S, "icons", NULL);
 #else
 #ifdef G_OS_WIN32
     gchar *buff = g_win32_get_package_installation_directory_of_module(NULL);

@@ -1,0 +1,104 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Gpredict-Blue (gdb)",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/gpredict",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "stopAtEntry": false,
+      "environment": [
+        {
+          "name": "DEBUGINFOD_URLS",
+          "value": ""
+        },
+        {
+          "name": "GPREDICT_PIXMAPS_DIR",
+          "value": "${workspaceFolder}/pixmaps"
+        },
+        {
+          "name": "GPREDICT_DATA_DIR",
+          "value": "${workspaceFolder}"
+        }
+      ],
+      "externalConsole": false,
+      "MIMode": "gdb",
+      "miDebuggerPath": "/usr/bin/gdb",
+      "miDebuggerArgs": ["-nx", "--quiet"],
+      "debuginfod": {
+        "enabled": false
+      },
+      "logging": {
+        "engineLogging": false
+      },
+      "setupCommands": [
+        {
+          "description": "Disable debuginfod (GDB 18 MI crash on Fedora)",
+          "text": "set debuginfod enabled off",
+          "ignoreFailures": false
+        },
+        {
+          "description": "Disable ANSI styling (MI parser)",
+          "text": "set style enabled off",
+          "ignoreFailures": true
+        },
+        {
+          "description": "No pagination",
+          "text": "set pagination off",
+          "ignoreFailures": true
+        },
+        {
+          "description": "Pretty-print for gdb",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        }
+      ]
+    },
+    {
+      "name": "Layout-Code-Tests (gdb)",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/test-layout-code",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "stopAtEntry": false,
+      "environment": [
+        {
+          "name": "DEBUGINFOD_URLS",
+          "value": ""
+        }
+      ],
+      "externalConsole": false,
+      "MIMode": "gdb",
+      "miDebuggerPath": "/usr/bin/gdb",
+      "miDebuggerArgs": ["-nx", "--quiet"],
+      "debuginfod": {
+        "enabled": false
+      },
+      "setupCommands": [
+        {
+          "description": "Disable debuginfod",
+          "text": "set debuginfod enabled off",
+          "ignoreFailures": false
+        },
+        {
+          "description": "Disable ANSI styling",
+          "text": "set style enabled off",
+          "ignoreFailures": true
+        },
+        {
+          "description": "No pagination",
+          "text": "set pagination off",
+          "ignoreFailures": true
+        },
+        {
+          "description": "Pretty-print for gdb",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        }
+      ]
+    }
+  ]
+}

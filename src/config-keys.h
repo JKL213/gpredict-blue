@@ -4,7 +4,6 @@
 
     Copyright (C)  2001-2013 Alexandru Csete, OZ9AEC.
 
-    Authors: Jan Koch DN9JUR
     Charles Suprin <hamaa1vs@gmail.com>
 
     Comments, questions and bugreports should be submitted via

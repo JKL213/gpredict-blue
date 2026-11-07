@@ -14,9 +14,14 @@ install-data-local:
 	$(INSTALL_DATA) $(top_srcdir)/README $(DESTDIR)$(pkgdatadir)
 	$(INSTALL_DATA) $(top_srcdir)/COPYING $(DESTDIR)$(pkgdatadir)
 
+.PHONY: run
+run:
+	@$(top_srcdir)/scripts/run-gpredict-blue.sh
+
 EXTRA_DIST = \
 	autogen.sh            \
 	git-version-gen       \
+	scripts/run-gpredict-blue.sh \
 	intltool-extract.in   \
 	intltool-merge.in     \
 	intltool-update.in    \

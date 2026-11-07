@@ -101,6 +101,11 @@ Or only the layout tests:
   make -C src test-layout-code
   src/test-layout-code
 
+Pixmap paths for uninstalled runs (maps, icons, logos):
+
+  make -C src test-asset-paths
+  src/test-asset-paths
+
 
 Building
 --------
@@ -111,6 +116,18 @@ system and compile:
   ./autogen.sh
   make
   make install
+
+Quick start from a build tree: `./scripts/run-gpredict-blue.sh` (same as `./src/gpredict` from the repo root).
+
+Running without `make install` (e.g. `./src/gpredict`) automatically uses
+`pixmaps/` and `data/` from the source tree when installed paths under the
+configure prefix are missing. Override with `GPREDICT_PIXMAPS_DIR` or
+`GPREDICT_DATA_DIR` if needed.
+
+Convenience launcher (sets those variables explicitly):
+
+  ./scripts/run-gpredict-blue.sh
+  make run
 
 ./autogen.sh accepts the same options as ./configure. The install step
 usually requires root. To install into a personal directory, pass a
