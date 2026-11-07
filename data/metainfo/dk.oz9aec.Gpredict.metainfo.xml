@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
   <id>dk.oz9aec.Gpredict</id>
-  <name>Gpredict</name>
-  <developer id="net.oz9aec">
-    <name>Alexandru Csete</name>
+  <name>Gpredict-Blue</name>
+  <developer id="io.github.jkl213">
+    <name>Jan Koch DN9JUR</name>
   </developer>
-  <summary>Real-time satellite tracking and orbit prediction program</summary>
+  <summary>Real-time satellite tracking (Gpredict-Blue fork)</summary>
   <description>
     <p>Gpredict is a real time satellite tracking and orbit prediction program written using the Gtk+ widgets.</p>
     <p>Gpredict is targeted mainly towards ham radio operators but others interested in satellite tracking may find it useful as well.</p>

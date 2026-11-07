@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.jkl213.GpredictBlue</id>
+  <name>Gpredict-Blue</name>
+  <developer id="io.github.jkl213">
+    <name>Jan Koch DN9JUR</name>
+  </developer>
+  <summary>Real-time satellite tracking (Gpredict-Blue fork)</summary>
+  <description>
+    <p>Gpredict-Blue is a personal fork of Gpredict, a real-time satellite tracking and orbit prediction program for the Gtk+ desktop.</p>
+    <p>Upstream Gpredict is maintained by Alexandru Csete OZ9AEC; see the original project for contributions and support.</p>
+  </description>
+  <categories>
+    <category>Astronomy</category>
+    <category>Education</category>
+    <category>HamRadio</category>
+    <category>Network</category>
+    <category>Science</category>
+  </categories>
+  <metadata_license>CC-BY-SA-3.0</metadata_license>
+  <project_license>GPL-2.0+</project_license>
+  <provides>
+    <binary>gpredict</binary>
+    <id>gpredict.desktop</id>
+  </provides>
+  <url type="homepage">https://github.com/JKL213/gpredict-blue</url>
+  <url type="bugtracker">https://github.com/JKL213/gpredict-blue/issues</url>
+  <url type="vcs-browser">https://github.com/JKL213/gpredict-blue</url>
+  <launchable type="desktop-id">gpredict.desktop</launchable>
+  <content_rating type="oars-1.1" />
+</component>

@@ -28,6 +28,7 @@
 #include "mod-cfg-get-param.h"
 #include "sat-cfg.h"
 #include "sat-log.h"
+#include "layout-code.h"
 #include "sat-pref-layout.h"
 
 static gboolean dirty = FALSE;
@@ -86,30 +87,34 @@ static const gchar *const view_type_color[] = {
 
 /* Predefined layouts. */
 gchar          *predef_layout[PREDEF_NUM][3] = {
-    {"1;0;2;0;1;2;0;1;1;2;3;1;2;1;2",
-     N_("World map, polar and single sat (with frequencies)"),
+    {NULL, N_("World map, polar and single sat (with frequencies)"),
      "gpredict-layout-00.png"},
-    {"1;0;2;0;1", N_("World map"), "gpredict-layout-01.png"},
-    {"0;0;2;0;1", N_("Table"), "gpredict-layout-02.png"},
-    {"1;0;2;0;2;0;0;2;2;3", N_("World map and table"),
-     "gpredict-layout-03.png"},
-    {"2;0;1;0;1;3;1;2;0;1",
-     N_("Polar and single sat (with frequencies)"),
+    {NULL, N_("World map"), "gpredict-layout-01.png"},
+    {NULL, N_("Table"), "gpredict-layout-02.png"},
+    {NULL, N_("World map and table"), "gpredict-layout-03.png"},
+    {NULL, N_("Polar and single sat (with frequencies)"),
      "gpredict-layout-04.png"},
-    {"2;0;1;0;1;4;1;2;0;1", N_("Polar and upcoming passes"),
-     "gpredict-layout-05.png"},
-    {"1;0;3;0;4;0;0;3;4;6;2;0;1;6;8;3;1;2;6;8;4;2;3;6;8",
-     N_("All views (narrow, with frequencies)"), "gpredict-layout-06.png"},
-    {"1;0;3;0;3;0;0;3;3;4;2;3;4;0;2;4;3;4;2;3;3;3;4;3;4",
-     N_("All views (wide, with frequencies)"), "gpredict-layout-07.png"},
-    {"1;0;3;0;3;0;0;3;3;4;2;3;4;0;2;3;3;4;2;4",
-     N_("Map, table, polar and single sat with frequencies (wide)"),
+    {NULL, N_("Polar and upcoming passes"), "gpredict-layout-05.png"},
+    {NULL, N_("All views (narrow, with frequencies)"),
+     "gpredict-layout-06.png"},
+    {NULL, N_("All views (wide, with frequencies)"),
+     "gpredict-layout-07.png"},
+    {NULL, N_("Map, table, polar and single sat with frequencies (wide)"),
      "gpredict-layout-08.png"},
-    {"5;0;2;0;1;3;0;2;1;2",
-     N_("Transmitters and single sat (with frequencies)"),
+    {NULL, N_("Transmitters and single sat (with frequencies)"),
      "gpredict-layout-99.png"},
-    {"", N_("Custom"), "gpredict-layout-99.png"}
+    {NULL, N_("Custom"), "gpredict-layout-99.png"}
 };
+
+static void
+predef_layout_init_codes(void)
+{
+    guint           i;
+
+    for (i = 0; i < PREDEF_NUM; i++)
+        predef_layout[i][0] =
+            (gchar *) layout_code_predef_string(i);
+}
 
 
 /* User pressed cancel. Any changes to config must be cancelled. */
@@ -355,14 +360,7 @@ static void layout_match_preset(void)
         return;
 
     text = gtk_entry_get_text(GTK_ENTRY(gridstr));
-    for (i = 0; i < PREDEF_NUM - 1; i++)
-    {
-        if (!g_ascii_strcasecmp(text, predef_layout[i][0]))
-        {
-            sel = (gint) i;
-            break;
-        }
-    }
+    sel = layout_code_match_predef(text);
 
     g_signal_handler_block(selector, selector_sigid);
     if (gtk_combo_box_get_active(GTK_COMBO_BOX(selector)) != sel)
@@ -502,15 +500,13 @@ static void layout_pane_add_cb(GtkWidget * button, gpointer data)
 static void layout_rebuild_panes(void)
 {
     const gchar    *text;
-    gchar         **parts;
-    guint           n, i;
+    GArray         *panes = NULL;
+    guint           i;
 
     if (pane_list == NULL || gridstr == NULL)
         return;
 
     text = gtk_entry_get_text(GTK_ENTRY(gridstr));
-    parts = g_strsplit(text != NULL ? text : "", ";", 0);
-    n = g_strv_length(parts);
 
     layout_syncing = TRUE;
     {
@@ -522,16 +518,19 @@ static void layout_rebuild_panes(void)
             gtk_widget_destroy(item->data);
         g_list_free(children);
     }
-    for (i = 0; i + 4 < n; i += 5)
+    if (layout_code_parse(text, &panes) && panes != NULL)
     {
-        layout_add_pane((gint) g_ascii_strtoll(parts[i], NULL, 10),
-                        (gint) g_ascii_strtoll(parts[i + 1], NULL, 10),
-                        (gint) g_ascii_strtoll(parts[i + 2], NULL, 10),
-                        (gint) g_ascii_strtoll(parts[i + 3], NULL, 10),
-                        (gint) g_ascii_strtoll(parts[i + 4], NULL, 10));
+        for (i = 0; i < panes->len; i++)
+        {
+            layout_pane_t   pane =
+                g_array_index(panes, layout_pane_t, i);
+
+            layout_add_pane(pane.type, pane.left, pane.right,
+                            pane.top, pane.bottom);
+        }
+        g_array_free(panes, TRUE);
     }
     layout_syncing = FALSE;
-    g_strfreev(parts);
     layout_preview_refresh();
 }
 
@@ -890,6 +889,8 @@ GtkWidget      *sat_pref_layout_create(GKeyFile * cfg)
 {
     GtkWidget      *table;
     GtkWidget      *vbox;
+
+    predef_layout_init_codes();
 
     /* create the table */
     table = gtk_grid_new();

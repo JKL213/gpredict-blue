@@ -237,7 +237,7 @@ static void gpredict_app_create()
     gchar          *icon;
 
     /* create window title and file name for window icon  */
-    title = g_strdup(_("Gpredict"));
+    title = g_strdup(_("Gpredict-Blue"));
     icon = logo_file_name("gpredict_icon_color.svg");
 
     /* create window, add title and icon, restore size and position */

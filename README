@@ -87,6 +87,21 @@ libgtk-3.so.0, install the runtime library (gtk3 on Fedora,
 libgtk-3-0 on Debian/Ubuntu).
 
 
+Tests
+-----
+
+Layout pane code strings (module preferences / pane sidebar editor) are covered by
+unit tests:
+
+  ./autogen.sh
+  make check
+
+Or only the layout tests:
+
+  make -C src test-layout-code
+  src/test-layout-code
+
+
 Building
 --------
 
@@ -107,6 +122,9 @@ prefix:
 
 A release tarball can be built with ./configure in place of ./autogen.sh.
 Further installation options are described in the INSTALL file.
+
+Flatpak builds are documented in `flatpak/README.md`. GitHub Release automation
+is described in `docs/RELEASE.md`.
 
 If your host is missing autotools or Gtk development packages and you use
 Podman or Docker, you can reproduce a full build inside a Fedora container by

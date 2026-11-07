@@ -33,7 +33,9 @@
 
 /* clang-format off */
 const gchar *authors[] = {
-    "Alexandru Csete, OZ9AEC, with contributions from:",
+    "Gpredict-Blue: Jan Koch DN9JUR",
+    "",
+    "Original Gpredict by Alexandru Csete, OZ9AEC, with contributions from:",
     "",
     "A. Maitland Bottoms, AA4HS",
     "A. Walker",
@@ -116,13 +118,14 @@ void about_dialog_create()
 
     dialog = gtk_about_dialog_new();
     gtk_window_set_transient_for(GTK_WINDOW(dialog), GTK_WINDOW(app));
-    gtk_about_dialog_set_program_name(GTK_ABOUT_DIALOG(dialog), _("Gpredict"));
+    gtk_about_dialog_set_program_name(GTK_ABOUT_DIALOG(dialog), _("Gpredict-Blue"));
     gtk_about_dialog_set_version(GTK_ABOUT_DIALOG(dialog), VERSION);
     gtk_about_dialog_set_copyright(
         GTK_ABOUT_DIALOG(dialog),
-        _("Copyright (C) 2001-2019 Alexandru Csete OZ9AEC and contributors"));
+        _("Copyright (C) 2001-2019 Alexandru Csete OZ9AEC and contributors; "
+          "Gpredict-Blue fork (C) 2025 Jan Koch DN9JUR"));
     gtk_about_dialog_set_website(GTK_ABOUT_DIALOG(dialog),
-                                 "http://gpredict.oz9aec.net/");
+                                 "https://github.com/JKL213/gpredict-blue");
     gtk_about_dialog_set_license_type(GTK_ABOUT_DIALOG(dialog),
                                       GTK_LICENSE_GPL_2_0);
     iconfile = logo_file_name("gpredict_icon_color.svg");

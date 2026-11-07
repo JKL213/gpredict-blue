@@ -3,7 +3,7 @@
 
     Copyright (C)  2001-2009  Alexandru Csete.
 
-    Authors: Alexandru Csete <oz9aec@gmail.com>
+    Authors: Jan Koch DN9JUR
 
     Comments, questions and bugreports should be submitted via
     http://sourceforge.net/projects/gpredict/

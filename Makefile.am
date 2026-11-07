@@ -21,6 +21,8 @@ EXTRA_DIST = \
 	intltool-merge.in     \
 	intltool-update.in    \
 	snap/snapcraft.yaml   \
+	flatpak/io.github.jkl213.GpredictBlue.yml \
+	flatpak/README.md \
 	win32/build-config.h  \
 	win32/config.mk       \
 	win32/gpredict.rc     \

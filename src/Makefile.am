@@ -99,6 +99,7 @@ gpredict_SOURCES = \
     sat-pref-debug.c sat-pref-debug.h \
     sat-pref-modules.c sat-pref-modules.h \
     sat-pref-notify.c sat-pref-notify.h \
+    layout-code.c layout-code.h \
     sat-pref-layout.c sat-pref-layout.h \
     sat-pref-refresh.c sat-pref-refresh.h \
     sat-pref-map-view.c sat-pref-map-view.h \
@@ -125,6 +126,18 @@ gpredict_SOURCES = \
 
 ##gpredict_LDADD = ./sgpsdp/libsgp4sdp4.a @PACKAGE_LIBS@
 gpredict_LDADD = @PACKAGE_LIBS@
+
+check_PROGRAMS = test-layout-code
+TESTS = test-layout-code
+
+test_layout_code_SOURCES = \
+    test-layout-code.c \
+    layout-code.c
+
+test_layout_code_LDADD = @PACKAGE_LIBS@
+
+EXTRA_DIST = \
+    test-layout-code.c
 
 ## $(INTLLIBS)
 

@@ -1,8 +1,15 @@
 
-Gpredict is designed and developed by Alexandru Csete OZ9AEC, with
-significant contributions from many individuals.
+Gpredict-Blue is maintained by Jan Koch DN9JUR (DN9JUR).
 
-Contributors (in alphabetical order):
+Gpredict was designed and developed by Alexandru Csete OZ9AEC, with
+significant contributions from many individuals. This fork retains their
+copyright and attribution in source files where applicable.
+
+Fork maintainer:
+
+- Jan Koch DN9JUR
+
+Contributors to upstream Gpredict (in alphabetical order):
 
 - A. Maitland Bottoms, AA4HS
 - A. Walker
@@ -76,6 +83,5 @@ Imagery:
 Most of the maps originate from NASA Visible Earth
 http://visibleearth.nasa.gov/
 
-If you notice that sopmebody's work has been used without giving proper
-credits, contact Alexandru Csete (callsign at gmail) or the project at
-https://github.com/csete/gpredict.
+Upstream: https://github.com/csete/gpredict
+This fork: https://github.com/JKL213/gpredict-blue

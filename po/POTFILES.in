@@ -7,6 +7,7 @@ src/gpredict-utils.c
 src/gtk-antenna-view.c
 src/gtk-azel-plot.c
 src/gtk-event-list.c
+src/gtk-event-list-popup.c
 src/gtk-freq-knob.c
 src/gtk-polar-plot.c
 src/gtk-polar-view.c

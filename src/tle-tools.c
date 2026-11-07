@@ -5,7 +5,7 @@
     Copyright (C)  2001-2009  Alexandru Csete, OZ9AEC.
     Parts are Copyright John A. Magliacane, KD2BD 1991-2003 (indicated below)
 
-    Authors: Alexandru Csete <oz9aec@gmail.com>
+    Authors: Jan Koch DN9JUR
              John A. Magliacane, KD2BD.
 
     Comments, questions and bugreports should be submitted via
