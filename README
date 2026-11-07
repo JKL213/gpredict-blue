@@ -77,6 +77,15 @@ Ubuntu systems you can install the build dependencies using:
   sudo apt install libtool intltool autoconf automake libcurl4-openssl-dev
   sudo apt install pkg-config libglib2.0-dev libgtk-3-dev
 
+On Fedora / RHEL (dnf), install the same toolchain and -devel packages with:
+
+  sudo dnf install libtool autoconf automake intltool gettext-devel pkg-config gcc make
+  sudo dnf install gtk3-devel glib2-devel libcurl-devel
+
+You need Gtk+ 3 at runtime as well. If the binary fails with missing
+libgtk-3.so.0, install the runtime library (gtk3 on Fedora,
+libgtk-3-0 on Debian/Ubuntu).
+
 
 Building
 --------
@@ -98,6 +107,11 @@ prefix:
 
 A release tarball can be built with ./configure in place of ./autogen.sh.
 Further installation options are described in the INSTALL file.
+
+If your host is missing autotools or Gtk development packages and you use
+Podman or Docker, you can reproduce a full build inside a Fedora container by
+bind-mounting this directory to /src, running the same dnf install commands as
+above, then ./autogen.sh and make from /src.
 
 
 Using Gpredict

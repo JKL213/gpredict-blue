@@ -28,6 +28,7 @@
 #include "gtk-sat-data.h"
 #include "gtk-sat-popup-common.h"
 #include "gtk-single-sat.h"
+#include "gtk-trsp-view.h"
 #include "locator.h"
 #include "mod-cfg-get-param.h"
 #include "orbit-tools.h"
@@ -557,6 +558,9 @@ void gtk_single_sat_reload_sats(GtkWidget * single_sat, GHashTable * sats)
 
     /* reload satellites */
     g_hash_table_foreach(sats, store_sats, single_sat);
+
+    if (GTK_SINGLE_SAT(single_sat)->trsp != NULL)
+        gtk_trsp_view_reload_sats(GTK_SINGLE_SAT(single_sat)->trsp, sats);
 }
 
 /*
@@ -636,6 +640,9 @@ void gtk_single_sat_select_sat(GtkWidget * single_sat, gint catnum)
     title = g_markup_printf_escaped("<b>%s</b>", sat->nickname);
     gtk_label_set_markup(GTK_LABEL(ssat->header), title);
     g_free(title);
+
+    if (ssat->trsp != NULL)
+        gtk_trsp_view_select_sat(ssat->trsp, catnum);
 }
 
 /* Update satellites */
@@ -718,6 +725,7 @@ GtkWidget      *gtk_single_sat_new(GKeyFile * cfgdata, GHashTable * sats,
     GtkWidget      *widget;
     GtkSingleSat   *single_sat;
     GtkWidget      *hbox;       /* horizontal box for header */
+    GtkWidget      *paned;
     GtkWidget      *label1;
     GtkWidget      *label2;
     sat_t          *sat;
@@ -825,11 +833,23 @@ GtkWidget      *gtk_single_sat_new(GKeyFile * cfgdata, GHashTable * sats,
     gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(single_sat->swin),
                                    GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
     gtk_container_add(GTK_CONTAINER(single_sat->swin), single_sat->table);
-    gtk_box_pack_end(GTK_BOX(widget), single_sat->swin, TRUE, TRUE, 0);
+
+    /* Frequencies of the selected satellite, under the numeric fields. */
+    single_sat->trsp = gtk_trsp_view_new(cfgdata, sats, qth);
+    gtk_widget_set_no_show_all(GTK_TRSP_VIEW(single_sat->trsp)->header, TRUE);
+    gtk_widget_hide(GTK_TRSP_VIEW(single_sat->trsp)->header);
+
+    paned = gtk_paned_new(GTK_ORIENTATION_VERTICAL);
+    gtk_paned_pack1(GTK_PANED(paned), single_sat->swin, TRUE, FALSE);
+    gtk_paned_pack2(GTK_PANED(paned), single_sat->trsp, TRUE, FALSE);
+    gtk_paned_set_position(GTK_PANED(paned), 180);
+    gtk_box_pack_start(GTK_BOX(widget), paned, TRUE, TRUE, 0);
     gtk_widget_show_all(widget);
 
     if (selectedcatnum)
         gtk_single_sat_select_sat(widget, selectedcatnum);
+    else if (sat != NULL)
+        gtk_trsp_view_select_sat(single_sat->trsp, sat->tle.catnr);
 
     return widget;
 }

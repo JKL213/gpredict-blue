@@ -42,9 +42,43 @@ static gulong   gridstr_sigid;
 
 /* layout selector combo */
 static GtkWidget *selector;
+static gulong   selector_sigid;
 
 /* layout thumbnail */
 static GtkWidget *thumb;
+
+/* Friendly pane editor. Writes the numeric layout code. */
+static GtkWidget *pane_list;
+static GtkWidget *preview;
+static GtkWidget *preview_note;
+static gboolean layout_syncing = FALSE;
+
+static const gchar *const view_type_name[] = {
+    N_("Table"),
+    N_("Map"),
+    N_("Polar"),
+    N_("Single sat"),
+    N_("Upcoming passes"),
+    N_("Transmitters")
+};
+
+static const gchar *const view_type_short[] = {
+    N_("List"),
+    N_("Map"),
+    N_("Polar"),
+    N_("Single"),
+    N_("Passes"),
+    N_("Freq.")
+};
+
+static const gchar *const view_type_color[] = {
+    "#d0d7de",
+    "#b7e1cd",
+    "#fce8b2",
+    "#c6dbef",
+    "#e6d5f2",
+    "#f8d0c8"
+};
 
 
 /* the number of predefined layouts (+1 for custom). */
@@ -52,23 +86,27 @@ static GtkWidget *thumb;
 
 /* Predefined layouts. */
 gchar          *predef_layout[PREDEF_NUM][3] = {
-    {"1;0;2;0;1;2;0;1;1;2;3;1;2;1;2", N_("World map, polar and single sat"),
+    {"1;0;2;0;1;2;0;1;1;2;3;1;2;1;2",
+     N_("World map, polar and single sat (with frequencies)"),
      "gpredict-layout-00.png"},
     {"1;0;2;0;1", N_("World map"), "gpredict-layout-01.png"},
     {"0;0;2;0;1", N_("Table"), "gpredict-layout-02.png"},
     {"1;0;2;0;2;0;0;2;2;3", N_("World map and table"),
      "gpredict-layout-03.png"},
-    {"2;0;1;0;1;3;1;2;0;1", N_("Polar and single sat"),
+    {"2;0;1;0;1;3;1;2;0;1",
+     N_("Polar and single sat (with frequencies)"),
      "gpredict-layout-04.png"},
     {"2;0;1;0;1;4;1;2;0;1", N_("Polar and upcoming passes"),
      "gpredict-layout-05.png"},
     {"1;0;3;0;4;0;0;3;4;6;2;0;1;6;8;3;1;2;6;8;4;2;3;6;8",
-     N_("All views (narrow)"), "gpredict-layout-06.png"},
+     N_("All views (narrow, with frequencies)"), "gpredict-layout-06.png"},
     {"1;0;3;0;3;0;0;3;3;4;2;3;4;0;2;4;3;4;2;3;3;3;4;3;4",
-     N_("All views (wide)"), "gpredict-layout-07.png"},
+     N_("All views (wide, with frequencies)"), "gpredict-layout-07.png"},
     {"1;0;3;0;3;0;0;3;3;4;2;3;4;0;2;3;3;4;2;4",
-     N_("Map, table, polar and single sat (wide)"), "gpredict-layout-08.png"},
-    {"5;0;2;0;1;3;0;2;1;2", N_("Transmitters and single sat"),
+     N_("Map, table, polar and single sat with frequencies (wide)"),
+     "gpredict-layout-08.png"},
+    {"5;0;2;0;1;3;0;2;1;2",
+     N_("Transmitters and single sat (with frequencies)"),
      "gpredict-layout-99.png"},
     {"", N_("Custom"), "gpredict-layout-99.png"}
 };
@@ -165,6 +203,379 @@ static gchar   *thumb_file_from_sel(guint sel)
     return fname;
 }
 
+static void layout_rebuild_panes(void);
+static void layout_preview_refresh(void);
+static void layout_match_preset(void);
+static void layout_panes_changed(GtkWidget * widget, gpointer data);
+
+static void layout_style_label(GtkWidget * label, const gchar * color)
+{
+    GtkCssProvider *provider;
+    gchar          *css;
+
+    provider = gtk_css_provider_new();
+    css = g_strdup_printf("* { background-color: %s; padding: 3px; }", color);
+    gtk_css_provider_load_from_data(provider, css, -1, NULL);
+    gtk_style_context_add_provider(gtk_widget_get_style_context(label),
+                                   GTK_STYLE_PROVIDER(provider),
+                                   GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+    g_object_unref(provider);
+    g_free(css);
+}
+
+static gint layout_pane_int(GtkWidget * row, const gchar * key)
+{
+    GtkWidget      *spin;
+
+    spin = g_object_get_data(G_OBJECT(row), key);
+    return gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(spin));
+}
+
+static void layout_preview_refresh(void)
+{
+    GList          *children;
+    GList          *item;
+    GArray         *rects;
+    gint            cols = 0;
+    gint            rows = 0;
+    gint            r, c;
+    gboolean        invalid = FALSE;
+    gboolean        overlap = FALSE;
+    GString        *note;
+
+    if (preview == NULL)
+        return;
+
+    children = gtk_container_get_children(GTK_CONTAINER(preview));
+    for (item = children; item != NULL; item = item->next)
+        gtk_widget_destroy(item->data);
+    g_list_free(children);
+
+    rects = g_array_new(FALSE, FALSE, sizeof(gint) * 5);
+    children = gtk_container_get_children(GTK_CONTAINER(pane_list));
+    for (item = children; item != NULL; item = item->next)
+    {
+        GtkWidget      *row = item->data;
+        GtkWidget      *combo;
+        gint            values[5];
+
+        combo = g_object_get_data(G_OBJECT(row), "combo");
+        values[0] = gtk_combo_box_get_active(GTK_COMBO_BOX(combo));
+        values[1] = layout_pane_int(row, "left");
+        values[2] = layout_pane_int(row, "right");
+        values[3] = layout_pane_int(row, "top");
+        values[4] = layout_pane_int(row, "bottom");
+        if (values[0] < 0 || values[0] >= GTK_SAT_MOD_VIEW_NUM ||
+            values[2] <= values[1] || values[4] <= values[3])
+        {
+            invalid = TRUE;
+            continue;
+        }
+        cols = MAX(cols, values[2]);
+        rows = MAX(rows, values[4]);
+        g_array_append_val(rects, values);
+    }
+    g_list_free(children);
+
+    if (cols > 12)
+        cols = 12;
+    if (rows > 12)
+        rows = 12;
+
+    for (r = 0; r < rows; r++)
+    {
+        for (c = 0; c < cols; c++)
+        {
+            GtkWidget      *cell;
+            gint            hits = 0;
+            gint            type = 0;
+            guint           p;
+
+            for (p = 0; p < rects->len; p++)
+            {
+                gint           *values = &g_array_index(rects, gint, p * 5);
+
+                if (c >= values[1] && c < values[2] &&
+                    r >= values[3] && r < values[4])
+                {
+                    hits++;
+                    type = values[0];
+                }
+            }
+
+            cell = gtk_label_new("");
+            gtk_widget_set_size_request(cell, 64, 28);
+            g_object_set(cell, "xalign", 0.5, NULL);
+            if (hits > 1)
+            {
+                overlap = TRUE;
+                gtk_label_set_text(GTK_LABEL(cell), "!");
+                layout_style_label(cell, "#f4a8a8");
+            }
+            else if (hits == 1)
+            {
+                gtk_label_set_text(GTK_LABEL(cell), _(view_type_short[type]));
+                layout_style_label(cell, view_type_color[type]);
+            }
+            else
+            {
+                layout_style_label(cell, "#f4f4f4");
+            }
+            gtk_grid_attach(GTK_GRID(preview), cell, c, r, 1, 1);
+        }
+    }
+    g_array_free(rects, TRUE);
+    gtk_widget_show_all(preview);
+
+    note = g_string_new(NULL);
+    if (invalid)
+        g_string_append(note,
+                        _("A pane is skipped in the preview when right is not "
+                          "greater than left, or bottom is not greater than top. "
+                          "The code is still saved."));
+    if (overlap)
+    {
+        if (note->len > 0)
+            g_string_append(note, "\n");
+        g_string_append(note, _("Overlapping panes are marked in red."));
+    }
+    gtk_label_set_text(GTK_LABEL(preview_note), note->str);
+    g_string_free(note, TRUE);
+}
+
+/* Select the preset whose code matches the entry, or Custom. */
+static void layout_match_preset(void)
+{
+    const gchar    *text;
+    guint           i;
+    gint            sel = PREDEF_NUM - 1;
+    gchar          *icon;
+
+    if (gridstr == NULL || selector == NULL)
+        return;
+
+    text = gtk_entry_get_text(GTK_ENTRY(gridstr));
+    for (i = 0; i < PREDEF_NUM - 1; i++)
+    {
+        if (!g_ascii_strcasecmp(text, predef_layout[i][0]))
+        {
+            sel = (gint) i;
+            break;
+        }
+    }
+
+    g_signal_handler_block(selector, selector_sigid);
+    if (gtk_combo_box_get_active(GTK_COMBO_BOX(selector)) != sel)
+        gtk_combo_box_set_active(GTK_COMBO_BOX(selector), sel);
+    g_signal_handler_unblock(selector, selector_sigid);
+
+    gtk_widget_set_sensitive(gridstr, sel == PREDEF_NUM - 1);
+    if (thumb != NULL)
+    {
+        icon = thumb_file_from_sel((guint) sel);
+        gtk_image_set_from_file(GTK_IMAGE(thumb), icon);
+        g_free(icon);
+    }
+}
+
+static void layout_panes_changed(GtkWidget * widget, gpointer data)
+{
+    GString        *code;
+    GList          *children;
+    GList          *item;
+    gboolean        first = TRUE;
+
+    (void)widget;
+    (void)data;
+
+    if (layout_syncing || pane_list == NULL || gridstr == NULL)
+        return;
+
+    layout_syncing = TRUE;
+    code = g_string_new(NULL);
+    children = gtk_container_get_children(GTK_CONTAINER(pane_list));
+    for (item = children; item != NULL; item = item->next)
+    {
+        GtkWidget      *row = item->data;
+        GtkWidget      *combo;
+        gint            type;
+
+        combo = g_object_get_data(G_OBJECT(row), "combo");
+        type = gtk_combo_box_get_active(GTK_COMBO_BOX(combo));
+        if (type < 0)
+            type = 0;
+        if (!first)
+            g_string_append_c(code, ';');
+        first = FALSE;
+        g_string_append_printf(code, "%d;%d;%d;%d;%d", type,
+                               layout_pane_int(row, "left"),
+                               layout_pane_int(row, "right"),
+                               layout_pane_int(row, "top"),
+                               layout_pane_int(row, "bottom"));
+    }
+    g_list_free(children);
+
+    g_signal_handler_block(gridstr, gridstr_sigid);
+    gtk_entry_set_text(GTK_ENTRY(gridstr), code->str);
+    g_signal_handler_unblock(gridstr, gridstr_sigid);
+    g_string_free(code, TRUE);
+    layout_syncing = FALSE;
+
+    dirty = TRUE;
+    layout_match_preset();
+    layout_preview_refresh();
+}
+
+static GtkWidget *layout_spin(gint value)
+{
+    GtkWidget      *spin;
+
+    spin = gtk_spin_button_new_with_range(0, 16, 1);
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(spin), value);
+    g_signal_connect(spin, "value-changed", G_CALLBACK(layout_panes_changed),
+                     NULL);
+    return spin;
+}
+
+static void layout_pane_remove_cb(GtkWidget * button, gpointer row)
+{
+    (void)button;
+    gtk_widget_destroy(GTK_WIDGET(row));
+    layout_panes_changed(NULL, NULL);
+}
+
+static void layout_add_pane(gint type, gint left, gint right, gint top,
+                            gint bottom)
+{
+    GtkWidget      *row;
+    GtkWidget      *combo;
+    GtkWidget      *remove;
+    GtkWidget      *left_w, *right_w, *top_w, *bottom_w;
+    guint           i;
+
+    row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 4);
+    combo = gtk_combo_box_text_new();
+    for (i = 0; i < GTK_SAT_MOD_VIEW_NUM; i++)
+        gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(combo),
+                                       _(view_type_name[i]));
+    if (type < 0 || type >= GTK_SAT_MOD_VIEW_NUM)
+        type = 0;
+    gtk_combo_box_set_active(GTK_COMBO_BOX(combo), type);
+    g_signal_connect(combo, "changed", G_CALLBACK(layout_panes_changed), NULL);
+    gtk_box_pack_start(GTK_BOX(row), combo, TRUE, TRUE, 0);
+
+    left_w = layout_spin(left);
+    right_w = layout_spin(right);
+    top_w = layout_spin(top);
+    bottom_w = layout_spin(bottom);
+    gtk_widget_set_tooltip_text(left_w, _("Left"));
+    gtk_widget_set_tooltip_text(right_w, _("Right"));
+    gtk_widget_set_tooltip_text(top_w, _("Top"));
+    gtk_widget_set_tooltip_text(bottom_w, _("Bottom"));
+    gtk_box_pack_start(GTK_BOX(row), left_w, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(row), right_w, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(row), top_w, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(row), bottom_w, FALSE, FALSE, 0);
+
+    remove = gtk_button_new_with_label(_("Remove"));
+    g_signal_connect(remove, "clicked", G_CALLBACK(layout_pane_remove_cb),
+                     row);
+    gtk_box_pack_start(GTK_BOX(row), remove, FALSE, FALSE, 0);
+
+    g_object_set_data(G_OBJECT(row), "combo", combo);
+    g_object_set_data(G_OBJECT(row), "left", left_w);
+    g_object_set_data(G_OBJECT(row), "right", right_w);
+    g_object_set_data(G_OBJECT(row), "top", top_w);
+    g_object_set_data(G_OBJECT(row), "bottom", bottom_w);
+    gtk_box_pack_start(GTK_BOX(pane_list), row, FALSE, FALSE, 0);
+    gtk_widget_show_all(row);
+}
+
+static void layout_pane_add_cb(GtkWidget * button, gpointer data)
+{
+    (void)button;
+    (void)data;
+    layout_add_pane(GTK_SAT_MOD_VIEW_LIST, 0, 1, 0, 1);
+    layout_panes_changed(NULL, NULL);
+}
+
+static void layout_rebuild_panes(void)
+{
+    const gchar    *text;
+    gchar         **parts;
+    guint           n, i;
+
+    if (pane_list == NULL || gridstr == NULL)
+        return;
+
+    text = gtk_entry_get_text(GTK_ENTRY(gridstr));
+    parts = g_strsplit(text != NULL ? text : "", ";", 0);
+    n = g_strv_length(parts);
+
+    layout_syncing = TRUE;
+    {
+        GList          *children;
+        GList          *item;
+
+        children = gtk_container_get_children(GTK_CONTAINER(pane_list));
+        for (item = children; item != NULL; item = item->next)
+            gtk_widget_destroy(item->data);
+        g_list_free(children);
+    }
+    for (i = 0; i + 4 < n; i += 5)
+    {
+        layout_add_pane((gint) g_ascii_strtoll(parts[i], NULL, 10),
+                        (gint) g_ascii_strtoll(parts[i + 1], NULL, 10),
+                        (gint) g_ascii_strtoll(parts[i + 2], NULL, 10),
+                        (gint) g_ascii_strtoll(parts[i + 3], NULL, 10),
+                        (gint) g_ascii_strtoll(parts[i + 4], NULL, 10));
+    }
+    layout_syncing = FALSE;
+    g_strfreev(parts);
+    layout_preview_refresh();
+}
+
+static void create_layout_editor(GtkGrid * table)
+{
+    GtkWidget      *frame;
+    GtkWidget      *box;
+    GtkWidget      *intro;
+    GtkWidget      *add;
+
+    frame = gtk_frame_new(_("Panes"));
+    box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
+    gtk_container_set_border_width(GTK_CONTAINER(box), 6);
+
+    intro = gtk_label_new(_("Each row is one view. Choose its type and the "
+                            "rectangle it occupies: left, right, top, bottom. "
+                            "The layout code is filled in from these rows."));
+    gtk_label_set_line_wrap(GTK_LABEL(intro), TRUE);
+    g_object_set(intro, "xalign", 0.0, NULL);
+    gtk_box_pack_start(GTK_BOX(box), intro, FALSE, FALSE, 0);
+
+    pane_list = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
+    gtk_box_pack_start(GTK_BOX(box), pane_list, FALSE, FALSE, 0);
+
+    add = gtk_button_new_with_label(_("Add pane"));
+    gtk_widget_set_halign(add, GTK_ALIGN_START);
+    g_signal_connect(add, "clicked", G_CALLBACK(layout_pane_add_cb), NULL);
+    gtk_box_pack_start(GTK_BOX(box), add, FALSE, FALSE, 0);
+
+    preview = gtk_grid_new();
+    gtk_grid_set_row_spacing(GTK_GRID(preview), 2);
+    gtk_grid_set_column_spacing(GTK_GRID(preview), 2);
+    gtk_box_pack_start(GTK_BOX(box), preview, FALSE, FALSE, 0);
+
+    preview_note = gtk_label_new(NULL);
+    gtk_label_set_line_wrap(GTK_LABEL(preview_note), TRUE);
+    g_object_set(preview_note, "xalign", 0.0, NULL);
+    gtk_box_pack_start(GTK_BOX(box), preview_note, FALSE, FALSE, 0);
+
+    gtk_container_add(GTK_CONTAINER(frame), box);
+    gtk_grid_attach(table, frame, 0, 3, 4, 1);
+    layout_rebuild_panes();
+}
+
 static void layout_code_changed(GtkWidget * widget, gpointer data)
 {
     gchar          *entry, *end, *j;
@@ -186,13 +597,6 @@ static void layout_code_changed(GtkWidget * widget, gpointer data)
             if (g_ascii_isdigit(c) || c == ';')
             {
                 dirty = TRUE;
-                /* ensure combo box is set to custom */
-                if (gtk_combo_box_get_active(GTK_COMBO_BOX(selector)) !=
-                    PREDEF_NUM - 1)
-                {
-                    gtk_combo_box_set_active(GTK_COMBO_BOX(selector),
-                                             PREDEF_NUM - 1);
-                }
             }
             else
             {
@@ -201,6 +605,12 @@ static void layout_code_changed(GtkWidget * widget, gpointer data)
                 gtk_editable_delete_text(GTK_EDITABLE(widget), pos, pos + 1);
             }
         }
+    }
+
+    if (!layout_syncing)
+    {
+        layout_rebuild_panes();
+        layout_match_preset();
     }
 }
 
@@ -234,6 +644,7 @@ static void layout_selected_cb(GtkComboBox * combo, gpointer data)
         {
             gtk_widget_set_sensitive(gridstr, TRUE);
         }
+        layout_rebuild_panes();
     }
 }
 
@@ -280,8 +691,9 @@ static void create_layout_selector(GKeyFile * cfg, GtkGrid * table)
     }
 
     gtk_combo_box_set_active(GTK_COMBO_BOX(selector), sel);
-    g_signal_connect(selector, "changed", G_CALLBACK(layout_selected_cb),
-                     NULL);
+    selector_sigid =
+        g_signal_connect(selector, "changed", G_CALLBACK(layout_selected_cb),
+                         NULL);
 
     /* layout preview thumbnail */
     thumbfile = thumb_file_from_sel(sel);
@@ -317,6 +729,7 @@ static void create_layout_selector(GKeyFile * cfg, GtkGrid * table)
                          NULL);
 
     gtk_grid_attach(table, gridstr, 1, 2, 3, 1);
+    create_layout_editor(table);
 }
 
 /* Toggle window positioning settings. */
@@ -488,7 +901,7 @@ GtkWidget      *sat_pref_layout_create(GKeyFile * cfg)
 
     /* separator */
     gtk_grid_attach(GTK_GRID(table),
-                    gtk_separator_new(GTK_ORIENTATION_HORIZONTAL), 0, 3, 5, 1);
+                    gtk_separator_new(GTK_ORIENTATION_HORIZONTAL), 0, 4, 5, 1);
 
     /* create vertical box */
     vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);

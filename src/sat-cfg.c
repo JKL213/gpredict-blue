@@ -227,7 +227,7 @@ sat_cfg_str_t   sat_cfg_str[SAT_CFG_STR_NUM] = {
     {"GLOBAL", "DEFAULT_QTH", "sample.qth"},
     {"GLOBAL", "OPEN_MODULES", "Amateur"},
     {"GLOBAL", "HTML_BROWSER", NULL},
-    {"MODULES", "GRID", "1;0;2;0;1;2;0;1;1;2;3;1;2;1;2"},
+    {"MODULES", "GRID", "1;0;3;0;3;0;0;3;3;4;2;3;4;0;2;3;3;4;2;4"},
     {"MODULES", "MAP_FILE", "nasa-bmng-07_1024.jpg"},
     {"MODULES", "MAP_FONT", "Sans 8"},
     {"MODULES", "POLAR_FONT", "Sans 10"},

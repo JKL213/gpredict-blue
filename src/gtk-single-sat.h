@@ -93,6 +93,7 @@ struct _gtk_single_sat {
 
     GtkWidget      *popup_button;       /*!< Popup button. */
 
+    GtkWidget      *trsp;       /*!< Embedded transmitter list. */
 
     GKeyFile       *cfgdata;    /*!< Configuration data. */
     GSList         *sats;       /*!< Satellites. */

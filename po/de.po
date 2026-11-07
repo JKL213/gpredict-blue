@@ -4087,8 +4087,8 @@ msgid "Rotators"
 msgstr "Rotoren"
 
 #: ../src/sat-pref-layout.c:55
-msgid "World map, polar and single sat"
-msgstr "Weltkarte, Polar- und Satelliteneinzelansicht"
+msgid "World map, polar and single sat (with frequencies)"
+msgstr "Weltkarte, Polar- und Satelliteneinzelansicht (mit Frequenzen)"
 
 #: ../src/sat-pref-layout.c:57
 msgid "World map"
@@ -4103,24 +4103,24 @@ msgid "World map and table"
 msgstr "Weltkarte und Tabelle"
 
 #: ../src/sat-pref-layout.c:61
-msgid "Polar and single sat"
-msgstr "Polar- und Satelliteneinzelansicht"
+msgid "Polar and single sat (with frequencies)"
+msgstr "Polar- und Satelliteneinzelansicht (mit Frequenzen)"
 
 #: ../src/sat-pref-layout.c:63
 msgid "Polar and upcoming passes"
 msgstr "Polar und kommende Überflüge"
 
 #: ../src/sat-pref-layout.c:66
-msgid "All views (narrow)"
-msgstr "Alle Ansichten (schmal)"
+msgid "All views (narrow, with frequencies)"
+msgstr "Alle Ansichten (schmal, mit Frequenzen)"
 
 #: ../src/sat-pref-layout.c:68
-msgid "All views (wide)"
-msgstr "Alle Ansichten (breit)"
+msgid "All views (wide, with frequencies)"
+msgstr "Alle Ansichten (breit, mit Frequenzen)"
 
 #: ../src/sat-pref-layout.c:70
-msgid "Map, table, polar and single sat (wide)"
-msgstr "Karte, Tabelle, Polar- und Satelliteneinzelansicht (breit)"
+msgid "Map, table, polar and single sat with frequencies (wide)"
+msgstr "Karte, Tabelle, Polar- und Einzelansicht mit Frequenzen (breit)"
 
 #: ../src/sat-pref-layout.c:71
 msgid "Custom"
@@ -6502,4 +6502,61 @@ msgstr "Richte das kurze Ende auf den Satelliten. Der blaue Kegel ist die -3-dB-
 
 msgid "Drag to rotate. Scroll to zoom. Double-click to reset."
 msgstr "Ziehen dreht die Ansicht. Das Mausrad zoomt. Ein Doppelklick setzt zurück."
+
+msgid "Transmitters and single sat (with frequencies)"
+msgstr "Transponder und Einzelansicht (mit Frequenzen)"
+
+msgid "Map"
+msgstr "Karte"
+
+msgid "Single sat"
+msgstr "Einzelansicht"
+
+msgid "Upcoming passes"
+msgstr "Kommende Überflüge"
+
+msgid "Transmitters"
+msgstr "Transponder"
+
+msgid "List"
+msgstr "Liste"
+
+msgid "Single"
+msgstr "Einzel"
+
+msgid "Passes"
+msgstr "Überflüge"
+
+msgid "Freq."
+msgstr "Freq."
+
+msgid "Remove"
+msgstr "Entfernen"
+
+msgid "Panes"
+msgstr "Flächen"
+
+msgid "Each row is one view. Choose its type and the rectangle it occupies: left, right, top, bottom. The layout code is filled in from these rows."
+msgstr "Jede Zeile ist eine Ansicht. Wähle den Typ und das Rechteck: links, rechts, oben, unten. Daraus entsteht der Layout-Code."
+
+msgid "Add pane"
+msgstr "Fläche hinzufügen"
+
+msgid "Left"
+msgstr "Links"
+
+msgid "Right"
+msgstr "Rechts"
+
+msgid "Top"
+msgstr "Oben"
+
+msgid "Bottom"
+msgstr "Unten"
+
+msgid "A pane is skipped in the preview when right is not greater than left, or bottom is not greater than top. The code is still saved."
+msgstr "Eine Fläche fehlt in der Vorschau, wenn rechts nicht größer als links oder unten nicht größer als oben ist. Der Code wird trotzdem gespeichert."
+
+msgid "Overlapping panes are marked in red."
+msgstr "Überlappende Flächen sind rot markiert."
 
