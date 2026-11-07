@@ -38,18 +38,13 @@
 #include "compat.h"
 #include "trsp-update.h"
 #include "gpredict-utils.h"
+#include "net-fetch.h"
 #include "sat-cfg.h"
 #include "sat-log.h"
 #include "nxjson/nxjson.h"
 
 #ifdef HAVE_CONFIG_H
 #include <build-config.h>
-#endif
-
-#ifdef WIN32
-#include "win32-fetch.h"
-#else
-#include <curl/curl.h>
 #endif
 
 /* TRSP auto update frequency. */
@@ -94,11 +89,10 @@ typedef struct {
     guint           numtrsp;    /* Number of transponders. */
 } new_trsp_t;
 
-#ifndef WIN32
-/* private function prototypes */
-static size_t   my_write_func(void *ptr, size_t size, size_t nmemb,
-                              FILE * stream);
-#endif
+static net_fetch_result_t modes_update_from_network(GtkWidget * logview,
+                                                    gboolean * cancel);
+static gboolean replace_downloaded_file(const gchar * part, const gchar * final,
+                                        GtkWidget * logview);
 
 //int getMODElist_intoHashMap();
 
@@ -139,7 +133,7 @@ static void free_new_trsp(gpointer data)
     g_free(mtrsp);
 }
 
-void trsp_update_files(gchar * input_file)
+void trsp_update_files(gchar * input_file, GtkWidget * logview)
 {
 
     FILE           *mfp;        /* transmitter information json file */
@@ -162,6 +156,7 @@ void trsp_update_files(gchar * input_file)
 
     /* force decimal mark to dot when parsing JSON file */
     setlocale(LC_NUMERIC, "C");
+    net_log_line(logview, "%s", _("* writing transponder files"));
 
     modes_hash =
         g_hash_table_new_full(g_int_hash, g_int_equal, g_free, free_new_mode);
@@ -374,6 +369,9 @@ void trsp_update_files(gchar * input_file)
                                         ("%s: Could not open trsp file for write"),
                                         __func__);
                         }
+
+                        if (logview != NULL && (idx % 250) == 0)
+                            while (g_main_context_iteration(NULL, FALSE));
                     }           // while(1)
                     nx_json_free(json);
                 }               // if(json)
@@ -386,98 +384,86 @@ void trsp_update_files(gchar * input_file)
     g_hash_table_destroy(modes_hash);
 }
 
+/** Install a finished download without destroying the previous file on failure. */
+static gboolean replace_downloaded_file(const gchar * part, const gchar * final,
+                                        GtkWidget * logview)
+{
+    gchar          *bak;
+    gboolean        ok = TRUE;
+
+    bak = g_strconcat(final, ".bak", NULL);
+    g_remove(bak);
+
+    if (g_file_test(final, G_FILE_TEST_EXISTS) && g_rename(final, bak) != 0)
+    {
+        net_log_line(logview, _("* could not move %s aside"), final);
+        ok = FALSE;
+    }
+
+    if (ok && g_rename(part, final) != 0)
+    {
+        net_log_line(logview, _("* could not install %s"), final);
+        if (g_file_test(bak, G_FILE_TEST_EXISTS))
+            g_rename(bak, final);
+        ok = FALSE;
+    }
+
+    if (ok)
+        g_remove(bak);
+    else
+        g_remove(part);
+
+    g_free(bak);
+    return ok;
+}
+
 /** Update MODES files from network. */
-void modes_update_from_network()
+static net_fetch_result_t modes_update_from_network(GtkWidget * logview,
+                                                    gboolean * cancel)
 {
     gchar          *server;
     gchar          *proxy = NULL;
     gchar          *modes_file;
     gchar          *file_url;
     gchar          *locfile;
+    gchar          *partfile;
     gchar          *userconfdir;
-#ifdef WIN32
-    int             res;
-#else
-    CURL           *curl;
-    CURLcode        res;
-#endif
     FILE           *outfile;
-    guint           success = 0;        /* no. of successful downloads */
+    net_fetch_result_t result = NET_FETCH_ERROR;
 
     server = sat_cfg_get_str(SAT_CFG_STR_TRSP_SERVER);
     proxy = sat_cfg_get_str(SAT_CFG_STR_TRSP_PROXY);
     modes_file = sat_cfg_get_str(SAT_CFG_STR_TRSP_MODE_FILE);
+    if (proxy != NULL && proxy[0] == '\0')
+    {
+        g_free(proxy);
+        proxy = NULL;
+    }
 
-#ifndef WIN32
-    /* initialise curl */
-    curl = curl_easy_init();
-    if (proxy != NULL)
-        curl_easy_setopt(curl, CURLOPT_PROXY, proxy);
-
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, "gpredict/curl");
-    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10);
-#endif
-
-    /* get files */
-    /* set URL */
     file_url = g_strconcat(server, modes_file, NULL);
-#ifndef WIN32
-    curl_easy_setopt(curl, CURLOPT_URL, file_url);
-    sat_log_log(SAT_LOG_LEVEL_INFO,
-                _("%s: Ready to fetch modes list from %s"),
-                __func__, file_url);
-#endif
-
-    /* create local cache file */
     userconfdir = get_user_conf_dir();
     locfile = g_strconcat(userconfdir, G_DIR_SEPARATOR_S, "trsp",
                           G_DIR_SEPARATOR_S, "modes.json", NULL);
-    sat_log_log(SAT_LOG_LEVEL_INFO, _("%s: File to open %s "), __func__,
-                locfile);
+    partfile = g_strconcat(locfile, ".part", NULL);
 
-    outfile = g_fopen(locfile, "wb");
+    outfile = g_fopen(partfile, "wb");
     if (outfile != NULL)
     {
-#ifdef WIN32
-        res = win32_fetch(file_url, outfile, proxy, "gpredict/win32");
-        if (res != 0)
-        {
-            sat_log_log(SAT_LOG_LEVEL_ERROR, _("%s: Error fetching %s (%x)"),
-                        __func__, file_url, res);
-        }
-        else
-        {
-            sat_log_log(SAT_LOG_LEVEL_INFO, _("%s: Successfully fetched %s"),
-                        __func__, file_url);
-            success++;
-        }
-#else
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, outfile);
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, my_write_func);
-
-        /* get file */
-        res = curl_easy_perform(curl);
-
-        if (res != CURLE_OK)
-        {
-            sat_log_log(SAT_LOG_LEVEL_ERROR, _("%s: Error fetching %s (%s)"),
-                        __func__, file_url, curl_easy_strerror(res));
-        }
-        else
-        {
-            sat_log_log(SAT_LOG_LEVEL_INFO, _("%s: Successfully fetched %s"),
-                        __func__, file_url);
-            success++;
-        }
-#endif
+        result = net_fetch_to_file(file_url, outfile, proxy, logview, cancel);
         fclose(outfile);
-
+        if (result == NET_FETCH_OK)
+        {
+            if (!replace_downloaded_file(partfile, locfile, logview))
+                result = NET_FETCH_ERROR;
+        }
+        else
+        {
+            g_remove(partfile);
+        }
     }
     else
     {
-        sat_log_log(SAT_LOG_LEVEL_INFO,
-                    _("%s: Failed to open %s preventing update"),
-                    __func__, locfile);
+        net_log_line(logview, _("* could not open %s"), partfile);
     }
 
     g_free(userconfdir);
@@ -485,27 +471,10 @@ void modes_update_from_network()
     g_free(server);
     g_free(proxy);
     g_free(modes_file);
+    g_free(locfile);
+    g_free(partfile);
 
-#ifndef WIN32
-    curl_easy_cleanup(curl);
-#endif
-
-    /* continue update if we have fetched at least one file */
-    if (success > 0)
-    {
-        sat_log_log(SAT_LOG_LEVEL_INFO,
-                    _("%s: Fetched %d files from network; updating..."),
-                    __func__, success);
-        //here we can get the modes json file into memory as hashmap..
-        //g_free(cache);
-
-    }
-    else
-    {
-        sat_log_log(SAT_LOG_LEVEL_ERROR,
-                    _("%s: Could not fetch frequency files from network"),
-                    __func__);
-    }
+    return result;
 }
 
 /**
@@ -515,10 +484,14 @@ void modes_update_from_network()
  * @param progress Pointer to a GtkProgressBar progress indicator (can be NULL)
  * @param label1 GtkLabel for activity string.
  * @param label2 GtkLabel for statistics string.
+ * @param logview GtkTextView for the command trace (can be NULL).
+ * @param cancel Set to TRUE to abort the remaining downloads.
+ * @return TRUE when a transmitter file was fetched and written.
  */
-void trsp_update_from_network(gboolean silent,
-                              GtkWidget * progress,
-                              GtkWidget * label1, GtkWidget * label2)
+gboolean trsp_update_from_network(gboolean silent,
+                                  GtkWidget * progress,
+                                  GtkWidget * label1, GtkWidget * label2,
+                                  GtkWidget * logview, gboolean * cancel)
 {
     static GMutex   trsp_in_progress;
 
@@ -527,19 +500,13 @@ void trsp_update_from_network(gboolean silent,
     gchar          *freq_file;
     gchar          *file_url;
     gchar          *locfile_trsp;
+    gchar          *partfile;
     gchar          *userconfdir;
-#ifdef WIN32
-    int             res;
-#else
-    CURL           *curl;
-    CURLcode        res;
-#endif
-    gdouble         fraction;
     FILE           *outfile;
-    gchar          *cache;
     gchar          *text;
-
-    guint           success = 0;        /* no. of successful downloads */
+    net_fetch_result_t modes_result;
+    net_fetch_result_t fetched = NET_FETCH_ERROR;
+    gboolean        applied = FALSE;
 
     (void)label2;
 
@@ -549,172 +516,124 @@ void trsp_update_from_network(gboolean silent,
         sat_log_log(SAT_LOG_LEVEL_ERROR,
                     _("%s: A frequency update process is already running"),
                     __func__);
-        return;
+        net_log_line(logview, "%s",
+                     _("* a transponder update is already running"));
+        return FALSE;
     }
 
-    /* get list with modes */
-    modes_update_from_network();
+    if (!silent && (progress != NULL))
+        gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(progress), 0.05);
 
-    /* get server, proxy, and list of files */
-    //server = sprintf("%stransmitters/?format=json", sat_cfg_get_str(SAT_CFG_STR_TRSP_SERVER));
-    server = sat_cfg_get_str(SAT_CFG_STR_TRSP_SERVER);
-    proxy = sat_cfg_get_str(SAT_CFG_STR_TRSP_PROXY);
-    freq_file = sat_cfg_get_str(SAT_CFG_STR_TRSP_FREQ_FILE);
+    modes_result = modes_update_from_network(logview, cancel);
 
-#ifndef WIN32
-    /* initialise curl */
-    curl = curl_easy_init();
-    if (proxy != NULL)
-        curl_easy_setopt(curl, CURLOPT_PROXY, proxy);
-
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, "gpredict/curl");
-    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10);
-#endif
-
-    /* get files */
-    /* set URL */
-    file_url = g_strconcat(server, freq_file, NULL);
-#ifndef WIN32
-    curl_easy_setopt(curl, CURLOPT_URL, file_url);
-    sat_log_log(SAT_LOG_LEVEL_INFO,
-                _("%s: Ready to fetch transponder list from %s"),
-                __func__, file_url);
-#endif
-
-    /* set activity message */
-    if (!silent && (label1 != NULL))
-    {
-
-        text = g_strdup_printf(_("Fetching %s"), "transmitters.json");
-        gtk_label_set_text(GTK_LABEL(label1), text);
-        g_free(text);
-
-        /* Force the drawing queue to be processed otherwise there will
-           not be any visual feedback, ie. frozen GUI
-           - see Gtk+ FAQ http://www.gtk.org/faq/#AEN602
-         */
-        while (g_main_context_iteration(NULL, FALSE));
-    }
-
-    /* create local cache file */
-    userconfdir = get_user_conf_dir();
-
-    locfile_trsp = g_strconcat(userconfdir, G_DIR_SEPARATOR_S, "trsp",
-                               G_DIR_SEPARATOR_S, "transmitters.json", NULL);
-    sat_log_log(SAT_LOG_LEVEL_INFO, _("%s: File to open %s "), __func__,
-                locfile_trsp);
-
-    outfile = g_fopen(locfile_trsp, "wb");
-    if (outfile != NULL)
-    {
-#ifdef WIN32
-        res = win32_fetch(file_url, outfile, proxy, "gpredict/win32");
-        if (res != 0)
-        {
-            sat_log_log(SAT_LOG_LEVEL_ERROR, _("%s: Error fetching %s (%x)"),
-                        __func__, file_url, res);
-        }
-        else
-        {
-            sat_log_log(SAT_LOG_LEVEL_INFO, _("%s: Successfully fetched %s"),
-                        __func__, file_url);
-            success++;
-        }
-#else
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, outfile);
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, my_write_func);
-
-        /* get file */
-        res = curl_easy_perform(curl);
-
-        if (res != CURLE_OK)
-        {
-            sat_log_log(SAT_LOG_LEVEL_ERROR, _("%s: Error fetching %s (%s)"),
-                        __func__, file_url, curl_easy_strerror(res));
-        }
-        else
-        {
-            sat_log_log(SAT_LOG_LEVEL_INFO, _("%s: Successfully fetched %s"),
-                        __func__, file_url);
-            success++;
-        }
-#endif
-        fclose(outfile);
-
-    }
-    else
-    {
-        sat_log_log(SAT_LOG_LEVEL_INFO,
-                    _("%s: Failed to open %s preventing update"),
-                    __func__, locfile_trsp);
-    }
-
-    /* update progress indicator */
     if (!silent && (progress != NULL))
     {
-        /* complete download corresponds to 50% */
-        fraction = 1;
-        gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(progress), fraction);
-
-        /* Force the drawing queue to be processed otherwise there will
-           not be any visual feedback, ie. frozen GUI
-           - see Gtk+ FAQ http://www.gtk.org/faq/#AEN602
-         */
+        gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(progress), 0.35);
         while (g_main_context_iteration(NULL, FALSE));
-
     }
 
-    g_free(userconfdir);
-    g_free(file_url);
-    g_free(server);
-    g_free(freq_file);
-    g_free(proxy);
-
-#ifndef WIN32
-    curl_easy_cleanup(curl);
-#endif
-
-    /* continue update if we have fetched at least one file */
-    if (success > 0)
+    if (modes_result == NET_FETCH_CANCELLED ||
+        (cancel != NULL && *cancel))
     {
-        sat_log_log(SAT_LOG_LEVEL_INFO,
-                    _("%s: Fetched %d files from network; updating..."),
-                    __func__, success);
-        /* call update_from_files */
-        cache = sat_file_name("cache");
-        trsp_update_files(locfile_trsp);
-        g_free(cache);
+        net_log_line(logview, "%s",
+                     _("* existing transponder data was left unchanged"));
+    }
+    else if (modes_result == NET_FETCH_BLOCKED ||
+             modes_result == NET_FETCH_TRANSPORT)
+    {
+        net_log_line(logview, "%s",
+                     _("* transmitter download skipped so Gpredict does not stall."));
+        net_log_line(logview, "%s",
+                     _("* existing transponder data was left unchanged"));
     }
     else
     {
-        sat_log_log(SAT_LOG_LEVEL_ERROR,
-                    _("%s: Could not fetch frequency files from network"),
-                    __func__);
+        server = sat_cfg_get_str(SAT_CFG_STR_TRSP_SERVER);
+        proxy = sat_cfg_get_str(SAT_CFG_STR_TRSP_PROXY);
+        freq_file = sat_cfg_get_str(SAT_CFG_STR_TRSP_FREQ_FILE);
+        if (proxy != NULL && proxy[0] == '\0')
+        {
+            g_free(proxy);
+            proxy = NULL;
+        }
+
+        file_url = g_strconcat(server, freq_file, NULL);
+
+        if (!silent && (label1 != NULL))
+        {
+            text = g_strdup_printf(_("Fetching %s"), "transmitters.json");
+            gtk_label_set_text(GTK_LABEL(label1), text);
+            g_free(text);
+            while (g_main_context_iteration(NULL, FALSE));
+        }
+
+        userconfdir = get_user_conf_dir();
+        locfile_trsp = g_strconcat(userconfdir, G_DIR_SEPARATOR_S, "trsp",
+                                   G_DIR_SEPARATOR_S, "transmitters.json", NULL);
+        partfile = g_strconcat(locfile_trsp, ".part", NULL);
+
+        outfile = g_fopen(partfile, "wb");
+        if (outfile != NULL)
+        {
+            fetched = net_fetch_to_file(file_url, outfile, proxy, logview,
+                                        cancel);
+            fclose(outfile);
+            if (fetched == NET_FETCH_OK)
+            {
+                if (!replace_downloaded_file(partfile, locfile_trsp, logview))
+                    fetched = NET_FETCH_ERROR;
+            }
+            else
+            {
+                g_remove(partfile);
+            }
+        }
+        else
+        {
+            net_log_line(logview, _("* could not open %s"), partfile);
+        }
+
+        if (fetched == NET_FETCH_OK)
+        {
+            trsp_update_files(locfile_trsp, logview);
+            net_log_line(logview, "%s", _("* transponder files updated"));
+            applied = TRUE;
+        }
+        else if (fetched == NET_FETCH_BLOCKED ||
+                 fetched == NET_FETCH_TRANSPORT)
+        {
+            net_log_line(logview, "%s",
+                         _("* server did not return transmitter data. Existing transponder data was left unchanged."));
+        }
+        else if (cancel != NULL && *cancel)
+        {
+            net_log_line(logview, "%s",
+                         _("* existing transponder data was left unchanged"));
+        }
+        else
+        {
+            net_log_line(logview, "%s",
+                         _("* no transmitter file was saved. Existing transponder data was left unchanged."));
+        }
+
+        g_free(userconfdir);
+        g_free(file_url);
+        g_free(server);
+        g_free(freq_file);
+        g_free(proxy);
+        g_free(locfile_trsp);
+        g_free(partfile);
+    }
+
+    if (!silent && (progress != NULL) && applied)
+    {
+        gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(progress), 1.0);
+        while (g_main_context_iteration(NULL, FALSE));
     }
 
     g_mutex_unlock(&trsp_in_progress);
+    return applied;
 }
-
-#ifndef WIN32
-/**
- * Write TRSP data block to file.
- * 
- * @param ptr Pointer to the data block to be written.
- * @param size Size of data block.
- * @param nmemb Size multiplier?
- * @param stream Pointer to the file handle.
- * @return The number of bytes actually written.
- *
- * This function writes the received data to the file pointed to by stream.
- * It is used as write callback by to curl exec function.
- */
-static size_t my_write_func(void *ptr, size_t size, size_t nmemb,
-                            FILE * stream)
-{
-    /*** FIXME: TBC whether this works in wintendo */
-    return fwrite(ptr, size, nmemb, stream);
-}
-#endif
 
 const gchar    *freq_to_str2[TRSP_AUTO_UPDATE_NUM] = {
     N_("Never"),

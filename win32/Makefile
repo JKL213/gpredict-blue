@@ -143,6 +143,7 @@ GPREDICTSRC = \
 	time-tools.c \
 	tle-tools.c \
 	tle-update.c \
+	net-fetch.c \
 	trsp-conf.c \
 	trsp-update.c \
 	win32-fetch.c

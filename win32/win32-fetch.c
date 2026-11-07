@@ -39,7 +39,8 @@ int win32_fetch(char *url, FILE *file, char *proxy, char *ua)
 {
     HINTERNET hInt, hUrl;
     char buf[BUFLEN];
-    DWORD nRead;
+    DWORD nRead = 0;
+    BOOL ok = TRUE;
 
     if (proxy != NULL)
         hInt = InternetOpen(ua, INTERNET_OPEN_TYPE_PROXY, proxy, "<local>", 0);
@@ -48,6 +49,19 @@ int win32_fetch(char *url, FILE *file, char *proxy, char *ua)
     if (NULL == hInt)
         return 0x80000000 | (int)GetLastError();
 
+    /* Don't sit forever on a host that accepts the TCP connection and then
+     * sends nothing (typical of an IP filter). */
+    {
+        DWORD timeout = 10000;
+        InternetSetOption(hInt, INTERNET_OPTION_CONNECT_TIMEOUT,
+                          &timeout, sizeof(timeout));
+        timeout = 30000;
+        InternetSetOption(hInt, INTERNET_OPTION_RECEIVE_TIMEOUT,
+                          &timeout, sizeof(timeout));
+        InternetSetOption(hInt, INTERNET_OPTION_SEND_TIMEOUT,
+                          &timeout, sizeof(timeout));
+    }
+
     hUrl = InternetOpenUrl(hInt, url, NULL, 0, INTERNET_FLAG_RELOAD, 0);
     if (NULL == hUrl)
     {
@@ -55,13 +69,32 @@ int win32_fetch(char *url, FILE *file, char *proxy, char *ua)
         return 0x40000000 | (int)GetLastError();
     }
 
-    while (InternetReadFile(hUrl, buf, BUFLEN, &nRead))
+    while ((ok = InternetReadFile(hUrl, buf, BUFLEN, &nRead)) && nRead > 0)
+        fwrite(buf, nRead, 1, file);
+    if (!ok)
     {
-        if (nRead > 0)
-            fwrite(buf, nRead, 1, file);
-        else
-            break;
+        int err = 0x40000000 | (int)GetLastError();
+        InternetCloseHandle(hUrl);
+        InternetCloseHandle(hInt);
+        return err;
     }
+
+    {
+        DWORD status = 0;
+        DWORD len = sizeof(status);
+        DWORD index = 0;
+
+        if (HttpQueryInfoA(hUrl,
+                           HTTP_QUERY_STATUS_CODE | HTTP_QUERY_FLAG_NUMBER,
+                           &status, &len, &index) &&
+            status >= 400)
+        {
+            InternetCloseHandle(hUrl);
+            InternetCloseHandle(hInt);
+            return (int) status;
+        }
+    }
+
     InternetCloseHandle(hUrl);
     InternetCloseHandle(hInt);
     return 0;

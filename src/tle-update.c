@@ -32,14 +32,10 @@
 #ifdef HAVE_CONFIG_H
 #include <build-config.h>
 #endif
-#ifdef WIN32
-#include "win32-fetch.h"
-#else
-#include <curl/curl.h>
-#endif
 
 #include "compat.h"
 #include "gpredict-utils.h"
+#include "net-fetch.h"
 #include "sat-cfg.h"
 #include "sat-log.h"
 #include "sgpsdp/sgp4sdp4.h"
@@ -47,10 +43,6 @@
 
 
 /* private function prototypes */
-#ifndef WIN32
-static size_t   my_write_func(void *ptr, size_t size, size_t nmemb,
-                              FILE * stream);
-#endif
 static gint     read_fresh_tle(const gchar * dir, const gchar * fnam,
                                GHashTable * data);
 static gboolean is_tle_file(const gchar * dir, const gchar * fnam);
@@ -98,7 +90,8 @@ static void free_new_tle(gpointer data)
  */
 void tle_update_from_files(const gchar * dir, const gchar * filter,
                            gboolean silent, GtkWidget * progress,
-                           GtkWidget * label1, GtkWidget * label2)
+                           GtkWidget * label1, GtkWidget * label2,
+                           GtkWidget * logview)
 {
     static GMutex   tle_file_in_progress;
 
@@ -143,6 +136,8 @@ void tle_update_from_files(const gchar * dir, const gchar * filter,
         sat_log_log(SAT_LOG_LEVEL_ERROR,
                     _("%s: Error opening directory %s (%s)"),
                     __func__, dir, err->message);
+        net_log_line(logview, _("* ERROR opening directory %s: %s"),
+                     dir, err->message);
 
         /* insert error message into the status string, too */
         if (!silent && (label1 != NULL))
@@ -195,12 +190,15 @@ void tle_update_from_files(const gchar * dir, const gchar * filter,
                 sat_log_log(SAT_LOG_LEVEL_ERROR,
                             _("%s: No valid TLE data found in %s"),
                             __func__, fnam);
+                net_log_line(logview, _("* no valid TLE data in %s"), fnam);
             }
             else
             {
                 sat_log_log(SAT_LOG_LEVEL_INFO,
                             _("%s: Read %d sats from %s into memory"),
                             __func__, num, fnam);
+                net_log_line(logview, _("* read %d satellites from %s"),
+                             num, fnam);
             }
         }
 
@@ -401,6 +399,10 @@ void tle_update_from_files(const gchar * dir, const gchar * filter,
 		now = g_get_real_time() / G_USEC_PER_SEC;
                 sat_cfg_set_int(SAT_CFG_INT_TLE_LAST_UPDATE, now);
             }
+
+            net_log_line(logview,
+                         _("* local update done: %u updated, %u skipped, %u missing, %u new"),
+                         updated, skipped, nodata, newsats);
         }
 
         g_free(ldname);
@@ -459,6 +461,20 @@ static guint add_new_sats(GHashTable * data)
     return num;
 }
 
+/** TRUE if this host already failed at the transport level. */
+static gboolean host_is_dead(GSList * dead, const gchar * host)
+{
+    GSList         *item;
+
+    for (item = dead; item != NULL; item = g_slist_next(item))
+    {
+        if (g_ascii_strcasecmp((const gchar *) item->data, host) == 0)
+            return TRUE;
+    }
+
+    return FALSE;
+}
+
 /**
  * Update TLE files from network.
  *
@@ -466,10 +482,14 @@ static guint add_new_sats(GHashTable * data)
  * @param progress Pointer to a GtkProgressBar progress indicator (can be NULL)
  * @param label1 GtkLabel for activity string.
  * @param label2 GtkLabel for statistics string.
+ * @param logview GtkTextView for the command trace (can be NULL).
+ * @param cancel Set to TRUE to abort the remaining downloads.
+ * @return TRUE if at least one file was fetched and applied.
  */
-void tle_update_from_network(gboolean silent,
-                             GtkWidget * progress,
-                             GtkWidget * label1, GtkWidget * label2)
+gboolean tle_update_from_network(gboolean silent,
+                                 GtkWidget * progress,
+                                 GtkWidget * label1, GtkWidget * label2,
+                                 GtkWidget * logview, gboolean * cancel)
 {
     static GMutex   tle_in_progress;
 
@@ -480,12 +500,6 @@ void tle_update_from_network(gboolean silent,
     gchar          *curfile;
     gchar          *locfile;
     gchar          *userconfdir;
-#ifdef WIN32
-    int             res;
-#else
-    CURL           *curl;
-    CURLcode        res;
-#endif
     gdouble         fraction, start = 0;
     FILE           *outfile;
     GDir           *dir;
@@ -494,6 +508,9 @@ void tle_update_from_network(gboolean silent,
     gchar          *text;
     GError         *err = NULL;
     guint           success = 0;        /* no. of successful downloads */
+    gboolean        applied = FALSE;
+    gboolean        stop_all = FALSE;
+    GSList         *dead_hosts = NULL;
 
     /* bail out if we are already in an update process */
     if (g_mutex_trylock(&tle_in_progress) == FALSE)
@@ -501,8 +518,10 @@ void tle_update_from_network(gboolean silent,
         sat_log_log(SAT_LOG_LEVEL_ERROR,
                     _("%s: TLE update is already running. Aborting."),
                     __func__);
+        net_log_line(logview, "%s",
+                     _("* a TLE update is already running"));
 
-        return;
+        return FALSE;
     }
 
     /* get server, proxy, and list of files */
@@ -524,6 +543,7 @@ void tle_update_from_network(gboolean silent,
     {
         sat_log_log(SAT_LOG_LEVEL_ERROR,
                     _("%s: No files to fetch from network."), __func__);
+        net_log_line(logview, "%s", _("* no TLE URLs configured"));
 
         /* set activity string, so user knows why nothing happens */
         if (!silent && (label1 != NULL))
@@ -538,32 +558,48 @@ void tle_update_from_network(gboolean silent,
         if (!silent && (progress != NULL))
             start = gtk_progress_bar_get_fraction(GTK_PROGRESS_BAR(progress));
 
-#ifndef WIN32
-        /* initialise curl */
-        curl = curl_easy_init();
-        if (proxy != NULL)
-            curl_easy_setopt(curl, CURLOPT_PROXY, proxy);
-
-        curl_easy_setopt(curl, CURLOPT_USERAGENT, "gpredict/curl");
-        curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10);
-#endif
+        net_log_line(logview,
+                     _("* fetching %u TLE file(s), connect timeout %lds, total timeout %lds"),
+                     numfiles, 10L, 30L);
 
         /* get files */
         for (i = 0; i < numfiles; i++)
         {
-            /* set URL */
+            gchar          *host = NULL;
+            net_fetch_result_t fetched = NET_FETCH_ERROR;
+
+            if (stop_all)
+                break;
+            if (cancel != NULL && *cancel)
+            {
+                net_log_line(logview, "%s", _("Download cancelled."));
+                break;
+            }
+
             curfile = g_strdup(files[i]);
-#ifndef WIN32
-            curl_easy_setopt(curl, CURLOPT_URL, curfile);
-#endif
+            g_strstrip(curfile);
+            if (curfile[0] == '\0')
+            {
+                g_free(curfile);
+                continue;
+            }
+
+            host = net_fetch_host(curfile);
+            if (host_is_dead(dead_hosts, host))
+            {
+                net_log_line(logview, "* skip %s", curfile);
+                g_free(host);
+                g_free(curfile);
+                continue;
+            }
 
             /* set activity message */
             if (!silent && (label1 != NULL))
             {
-
-                text = g_strdup_printf(_("Fetching %s"), files[i]);
+                text = g_strdup_printf(_("Fetching %s"), curfile);
                 gtk_label_set_text(GTK_LABEL(label1), text);
                 g_free(text);
+                while (g_main_context_iteration(NULL, FALSE));
             }
 
             /* create local cache file ~/.config/Gpredict/satdata/cache/file-%d.tle */
@@ -574,94 +610,83 @@ void tle_update_from_network(gboolean silent,
             outfile = g_fopen(locfile, "wb");
             if (outfile != NULL)
             {
-#ifdef WIN32
-                res = win32_fetch(curfile, outfile, proxy, "gpredict/win32");
-                if (res != 0)
-                {
-                    sat_log_log(SAT_LOG_LEVEL_ERROR,
-                                _("%s: Error fetching %s (%x)"),
-                                __func__, curfile, res);
-                }
-                else
-                {
-                    sat_log_log(SAT_LOG_LEVEL_INFO,
-                                _("%s: Successfully fetched %s"),
-                                __func__, curfile);
-                    success++;
-                }
-#else
-                curl_easy_setopt(curl, CURLOPT_WRITEDATA, outfile);
-                curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, my_write_func);
-                curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-
-                /* get file */
-                res = curl_easy_perform(curl);
-
-                if (res != CURLE_OK)
-                {
-                    sat_log_log(SAT_LOG_LEVEL_ERROR,
-                                _("%s: Error fetching %s (%s)"),
-                                __func__, curfile, curl_easy_strerror(res));
-                }
-                else
-                {
-                    sat_log_log(SAT_LOG_LEVEL_INFO,
-                                _("%s: Successfully fetched %s"),
-                                __func__, curfile);
-                    success++;
-                }
-#endif
+                fetched = net_fetch_to_file(curfile, outfile, proxy, logview,
+                                            cancel);
                 fclose(outfile);
+
+                if (fetched == NET_FETCH_OK)
+                {
+                    success++;
+                }
+                else
+                {
+                    /* drop the error page so it is not parsed as a TLE */
+                    g_remove(locfile);
+                }
+
+                if (fetched == NET_FETCH_BLOCKED)
+                {
+                    stop_all = TRUE;
+                    net_log_line(logview, "%s",
+                                 _("* server refused the request. Further downloads were skipped so Gpredict does not stall."));
+                }
+                else if (fetched == NET_FETCH_TRANSPORT)
+                {
+                    dead_hosts = g_slist_prepend(dead_hosts, g_strdup(host));
+                    net_log_line(logview,
+                                 _("* no reply from %s. Remaining URLs on this host were skipped."),
+                                 host);
+                }
             }
             else
             {
-                sat_log_log(SAT_LOG_LEVEL_INFO,
-                            _("%s: Failed to open %s preventing update"),
-                            __func__, locfile);
+                net_log_line(logview, _("* could not open %s"), locfile);
             }
+
             /* update progress indicator */
             if (!silent && (progress != NULL))
             {
-
                 /* complete download corresponds to 50% */
-                fraction = start + (0.5 - start) * i / (1.0 * numfiles);
+                fraction = start + (0.5 - start) * (i + 1) / (1.0 * numfiles);
                 gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(progress),
                                               fraction);
-
-                /* Force the drawing queue to be processed otherwise there will
-                   not be any visual feedback, ie. frozen GUI
-                   - see Gtk+ FAQ http://www.gtk.org/faq/#AEN602
-                 */
                 while (g_main_context_iteration(NULL, FALSE));
             }
 
+            g_free(host);
             g_free(userconfdir);
             g_free(curfile);
             g_free(locfile);
+
+            if (fetched == NET_FETCH_CANCELLED ||
+                (cancel != NULL && *cancel))
+                break;
         }
 
-#ifndef WIN32
-        curl_easy_cleanup(curl);
-#endif
+        g_slist_free_full(dead_hosts, g_free);
+        dead_hosts = NULL;
 
-        /* continue update if we have fetched at least one file */
-        if (success > 0)
+        /* keep already stored elements when nothing usable was downloaded */
+        if (cancel != NULL && *cancel)
         {
-            sat_log_log(SAT_LOG_LEVEL_INFO,
-                        _("%s: Fetched %d files from network; updating..."),
-                        __func__, success);
-            /* call update_from_files */
+            net_log_line(logview, "%s",
+                         _("* existing satellite data was left unchanged"));
+        }
+        else if (success > 0)
+        {
+            net_log_line(logview,
+                         _("* fetched %u file(s). Updating local satellite files..."),
+                         success);
             cache = sat_file_name("cache");
             tle_update_from_files(cache, NULL, silent, progress, label1,
-                                  label2);
+                                  label2, logview);
             g_free(cache);
+            applied = TRUE;
         }
         else
         {
-            sat_log_log(SAT_LOG_LEVEL_ERROR,
-                        _
-                        ("%s: Could not fetch TLE files from network. Aborting."),
-                        __func__);
+            net_log_line(logview, "%s",
+                         _("* no TLE file was saved. Existing satellite data was left unchanged."));
         }
 
     }
@@ -681,7 +706,7 @@ void tle_update_from_network(gboolean silent,
         /* send an error message */
         sat_log_log(SAT_LOG_LEVEL_ERROR,
                     _("%s: Error opening %s (%s)"),
-                    __func__, dir, err->message);
+                    __func__, cache, err->message);
         g_clear_error(&err);
     }
     else
@@ -702,28 +727,8 @@ void tle_update_from_network(gboolean silent,
 
     g_free(cache);
     g_mutex_unlock(&tle_in_progress);
+    return applied;
 }
-
-#ifndef WIN32
-/**
- * Write TLE data block to file.
- *
- * @param ptr Pointer to the data block to be written.
- * @param size Size of data block.
- * @param nmemb Size multiplier?
- * @param stream Pointer to the file handle.
- * @return The number of bytes actually written.
- *
- * This function writes the received data to the file pointed to by stream.
- * It is used as write callback by to curl exec function.
- */
-static size_t my_write_func(void *ptr, size_t size, size_t nmemb,
-                            FILE * stream)
-{
-    /*** FIXME: TBC whether this works in wintendo */
-    return fwrite(ptr, size, nmemb, stream);
-}
-#endif
 
 /**
  * Check whether file is TLE file.

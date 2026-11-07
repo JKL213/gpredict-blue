@@ -485,6 +485,63 @@ static void menubar_pref_cb(GtkWidget * widget, gpointer data)
     sat_pref_run();
 }
 
+typedef struct {
+    gboolean        running;
+    gboolean        cancel;
+} net_dialog_state_t;
+
+/* Keep the download window open. A click while the transfer is running
+ * only raises the cancel flag, so a blocked server cannot trap the dialog.
+ */
+static void net_dialog_response(GtkDialog * dialog, gint response, gpointer data)
+{
+    net_dialog_state_t *state = data;
+
+    (void)response;
+    if (state->running)
+    {
+        state->cancel = TRUE;
+        return;
+    }
+
+    gtk_widget_destroy(GTK_WIDGET(dialog));
+}
+
+/* Monospace trace of the download, similar to a terminal. */
+static GtkWidget *net_dialog_log_view(GtkWidget * box)
+{
+    GtkWidget      *caption;
+    GtkWidget      *scroll;
+    GtkWidget      *view;
+
+    caption = gtk_label_new(_("Details"));
+    g_object_set(caption, "xalign", 0.0, "yalign", 0.5, NULL);
+    gtk_box_pack_start(GTK_BOX(box), caption, FALSE, FALSE, 0);
+
+    scroll = gtk_scrolled_window_new(NULL, NULL);
+    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scroll),
+                                   GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
+    gtk_scrolled_window_set_shadow_type(GTK_SCROLLED_WINDOW(scroll),
+                                        GTK_SHADOW_IN);
+    gtk_widget_set_size_request(scroll, 680, 220);
+    gtk_widget_set_hexpand(scroll, TRUE);
+    gtk_widget_set_vexpand(scroll, TRUE);
+
+    view = gtk_text_view_new();
+    gtk_text_view_set_editable(GTK_TEXT_VIEW(view), FALSE);
+    gtk_text_view_set_cursor_visible(GTK_TEXT_VIEW(view), FALSE);
+    gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(view), GTK_WRAP_WORD_CHAR);
+    gtk_text_view_set_left_margin(GTK_TEXT_VIEW(view), 6);
+    gtk_text_view_set_right_margin(GTK_TEXT_VIEW(view), 6);
+#if GTK_CHECK_VERSION(3, 16, 0)
+    gtk_text_view_set_monospace(GTK_TEXT_VIEW(view), TRUE);
+#endif
+    gtk_container_add(GTK_CONTAINER(scroll), view);
+    gtk_box_pack_start(GTK_BOX(box), scroll, TRUE, TRUE, 8);
+
+    return view;
+}
+
 /* Update Frequency information from Network */
 static void menubar_trsp_net_cb(GtkWidget * widget, gpointer data)
 {
@@ -493,19 +550,31 @@ static void menubar_trsp_net_cb(GtkWidget * widget, gpointer data)
     GtkWidget      *label;
     GtkWidget      *progress;
     GtkWidget      *label1, *label2;
+    GtkWidget      *logview;
     GtkWidget      *box;
+    GtkWidget      *button;
+    net_dialog_state_t *state;
+    gboolean        ok;
 
     (void)widget;
     (void)data;
+
+    state = g_new0(net_dialog_state_t, 1);
+    state->running = TRUE;
 
     /* create new dialog with progress indicator */
     dialog = gtk_dialog_new_with_buttons(_("Transponder Update"),
                                          GTK_WINDOW(app),
                                          GTK_DIALOG_MODAL |
                                          GTK_DIALOG_DESTROY_WITH_PARENT,
-                                         "_Close", GTK_RESPONSE_ACCEPT, NULL);
-    gtk_dialog_set_response_sensitive(GTK_DIALOG(dialog), GTK_RESPONSE_ACCEPT,
-                                      FALSE);
+                                         _("_Cancel"), GTK_RESPONSE_ACCEPT,
+                                         NULL);
+    button = gtk_dialog_get_widget_for_response(GTK_DIALOG(dialog),
+                                                GTK_RESPONSE_ACCEPT);
+    g_object_set_data_full(G_OBJECT(dialog), "net-dialog-state", state, g_free);
+    g_signal_connect(dialog, "response", G_CALLBACK(net_dialog_response),
+                     state);
+    gtk_window_set_default_size(GTK_WINDOW(dialog), 760, 520);
     /* create a vbox */
     box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
     gtk_box_set_homogeneous(GTK_BOX(box), FALSE);
@@ -529,13 +598,15 @@ static void menubar_trsp_net_cb(GtkWidget * widget, gpointer data)
 
     /* statistics */
     label2 = gtk_label_new(_("\n"));
-    gtk_box_pack_start(GTK_BOX(box), label2, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(box), label2, FALSE, FALSE, 0);
+
+    logview = net_dialog_log_view(box);
+    gtk_label_set_ellipsize(GTK_LABEL(label1), PANGO_ELLIPSIZE_MIDDLE);
+    gtk_label_set_max_width_chars(GTK_LABEL(label1), 80);
 
     /* finalise dialog */
     gtk_container_add(GTK_CONTAINER
                       (gtk_dialog_get_content_area(GTK_DIALOG(dialog))), box);
-    g_signal_connect_swapped(dialog, "response",
-                             G_CALLBACK(gtk_widget_destroy), dialog);
 
     gtk_widget_show_all(dialog);
 
@@ -546,16 +617,21 @@ static void menubar_trsp_net_cb(GtkWidget * widget, gpointer data)
     while (g_main_context_iteration(NULL, FALSE));
 
     /* update TRSP */
-    trsp_update_from_network(FALSE, progress, label1, label2);
+    ok = trsp_update_from_network(FALSE, progress, label1, label2, logview,
+                                  &state->cancel);
 
-    /* set progress bar to 100% */
-    gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(progress), 1.0);
+    state->running = FALSE;
+    if (state->cancel)
+        gtk_label_set_text(GTK_LABEL(label1), _("Cancelled"));
+    else if (ok)
+        gtk_label_set_text(GTK_LABEL(label1), _("Finished"));
+    else
+        gtk_label_set_text(GTK_LABEL(label1), _("Stopped"));
 
-    gtk_label_set_text(GTK_LABEL(label1), _("Finished"));
-
-    /* enable close button */
-    gtk_dialog_set_response_sensitive(GTK_DIALOG(dialog), GTK_RESPONSE_ACCEPT,
-                                      TRUE);
+    if (ok)
+        gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(progress), 1.0);
+    if (button != NULL)
+        gtk_button_set_label(GTK_BUTTON(button), _("_Close"));
 
     /* reload satellites */
     mod_mgr_reload_sats();
@@ -568,19 +644,31 @@ static void menubar_tle_net_cb(GtkWidget * widget, gpointer data)
     GtkWidget      *label;
     GtkWidget      *progress;
     GtkWidget      *label1, *label2;
+    GtkWidget      *logview;
     GtkWidget      *box;
+    GtkWidget      *button;
+    net_dialog_state_t *state;
+    gboolean        ok;
 
     (void)widget;
     (void)data;
+
+    state = g_new0(net_dialog_state_t, 1);
+    state->running = TRUE;
 
     /* create new dialog with progress indicator */
     dialog = gtk_dialog_new_with_buttons(_("TLE Update"),
                                          GTK_WINDOW(app),
                                          GTK_DIALOG_MODAL |
                                          GTK_DIALOG_DESTROY_WITH_PARENT,
-                                         "_Close", GTK_RESPONSE_ACCEPT, NULL);
-    gtk_dialog_set_response_sensitive(GTK_DIALOG(dialog), GTK_RESPONSE_ACCEPT,
-                                      FALSE);
+                                         _("_Cancel"), GTK_RESPONSE_ACCEPT,
+                                         NULL);
+    button = gtk_dialog_get_widget_for_response(GTK_DIALOG(dialog),
+                                                GTK_RESPONSE_ACCEPT);
+    g_object_set_data_full(G_OBJECT(dialog), "net-dialog-state", state, g_free);
+    g_signal_connect(dialog, "response", G_CALLBACK(net_dialog_response),
+                     state);
+    gtk_window_set_default_size(GTK_WINDOW(dialog), 760, 520);
 
     /* create a vbox */
     box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
@@ -607,13 +695,15 @@ static void menubar_tle_net_cb(GtkWidget * widget, gpointer data)
     label2 = gtk_label_new(_("Satellites updated:\t 0\n"
                              "Satellites skipped:\t 0\n"
                              "Missing Satellites:\t 0\n"));
-    gtk_box_pack_start(GTK_BOX(box), label2, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(box), label2, FALSE, FALSE, 0);
+
+    logview = net_dialog_log_view(box);
+    gtk_label_set_ellipsize(GTK_LABEL(label1), PANGO_ELLIPSIZE_MIDDLE);
+    gtk_label_set_max_width_chars(GTK_LABEL(label1), 80);
 
     /* finalise dialog */
     gtk_container_add(GTK_CONTAINER
                       (gtk_dialog_get_content_area(GTK_DIALOG(dialog))), box);
-    g_signal_connect_swapped(dialog, "response",
-                             G_CALLBACK(gtk_widget_destroy), dialog);
 
     gtk_widget_show_all(dialog);
 
@@ -624,16 +714,21 @@ static void menubar_tle_net_cb(GtkWidget * widget, gpointer data)
     while (g_main_context_iteration(NULL, FALSE));
 
     /* update TLE */
-    tle_update_from_network(FALSE, progress, label1, label2);
+    ok = tle_update_from_network(FALSE, progress, label1, label2, logview,
+                                 &state->cancel);
 
-    /* set progress bar to 100% */
-    gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(progress), 1.0);
+    state->running = FALSE;
+    if (state->cancel)
+        gtk_label_set_text(GTK_LABEL(label1), _("Cancelled"));
+    else if (ok)
+        gtk_label_set_text(GTK_LABEL(label1), _("Finished"));
+    else
+        gtk_label_set_text(GTK_LABEL(label1), _("Stopped"));
 
-    gtk_label_set_text(GTK_LABEL(label1), _("Finished"));
-
-    /* enable close button */
-    gtk_dialog_set_response_sensitive(GTK_DIALOG(dialog), GTK_RESPONSE_ACCEPT,
-                                      TRUE);
+    if (ok)
+        gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(progress), 1.0);
+    if (button != NULL)
+        gtk_button_set_label(GTK_BUTTON(button), _("_Close"));
 
     /* reload satellites */
     mod_mgr_reload_sats();
@@ -765,7 +860,8 @@ static void menubar_tle_local_cb(GtkWidget * widget, gpointer data)
         while (g_main_context_iteration(NULL, FALSE));
 
         /* update TLE */
-        tle_update_from_files(dir, NULL, FALSE, progress, label1, label2);
+        tle_update_from_files(dir, NULL, FALSE, progress, label1, label2,
+                              NULL);
 
         /* set progress bar to 100% */
         gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(progress), 1.0);

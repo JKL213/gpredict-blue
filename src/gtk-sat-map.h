@@ -87,6 +87,8 @@ typedef struct {
 
     /* Text elements */
     gchar          *locnam_text; /*!< Location name text. */
+    gchar          *time_text;   /*!< Station clock and UTC (top centre). */
+    guint           clock_tick;  /*!< Last displayed time (whole seconds). */
     gchar          *curs_text;   /*!< Cursor tracking text. */
     gchar          *next_text;   /*!< Next event text. */
     gchar          *sel_text;    /*!< Text showing info about the selected satellite. */

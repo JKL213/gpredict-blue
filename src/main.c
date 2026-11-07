@@ -580,7 +580,7 @@ static          gpointer update_tle_thread(gpointer data)
     (void)data;
 
     tle_upd_running = TRUE;
-    tle_update_from_network(TRUE, NULL, NULL, NULL);
+    tle_update_from_network(TRUE, NULL, NULL, NULL, NULL, NULL);
 
     /* reloading touches GTK, so run it on the main thread, not here */
     gdk_threads_add_idle(reload_sats_idle_cb, NULL);

@@ -28,9 +28,12 @@
 
 #include <gtk/gtk.h>
 
-void            trsp_update_from_network(gboolean silent,
+/* TRUE when transponder data was fetched and written. */
+gboolean        trsp_update_from_network(gboolean silent,
                                          GtkWidget * progress,
                                          GtkWidget * label1,
-                                         GtkWidget * label2);
+                                         GtkWidget * label2,
+                                         GtkWidget * logview,
+                                         gboolean * cancel);
 
 #endif

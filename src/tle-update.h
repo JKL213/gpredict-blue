@@ -77,12 +77,16 @@ void            tle_update_from_files(const gchar * dir,
                                       const gchar * filter,
                                       gboolean silent,
                                       GtkWidget * progress,
-                                      GtkWidget * label1, GtkWidget * label2);
+                                      GtkWidget * label1, GtkWidget * label2,
+                                      GtkWidget * logview);
 
-void            tle_update_from_network(gboolean silent,
+/* TRUE when at least one file was fetched and applied. */
+gboolean        tle_update_from_network(gboolean silent,
                                         GtkWidget * progress,
                                         GtkWidget * label1,
-                                        GtkWidget * label2);
+                                        GtkWidget * label2,
+                                        GtkWidget * logview,
+                                        gboolean * cancel);
 
 const gchar    *tle_update_freq_to_str(tle_auto_upd_freq_t freq);
 

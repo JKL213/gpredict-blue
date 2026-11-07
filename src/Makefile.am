@@ -69,6 +69,7 @@ gpredict_SOURCES = \
     map-selector.c map-selector.h \
     map-tools.c map-tools.h \
     menubar.c menubar.h \
+    net-fetch.c net-fetch.h \
     mod-cfg.c mod-cfg.h \
     mod-cfg-get-param.c mod-cfg-get-param.h \
     mod-mgr.c mod-mgr.h \

@@ -26,6 +26,7 @@
 #include <glib/gi18n.h>
 #include <math.h>
 #include <string.h>
+#include <time.h>
 
 #include "compat.h"
 #include "config-keys.h"
@@ -96,6 +97,7 @@ static gint     compare_coordinates_y(gconstpointer a, gconstpointer b,
 static void     update_selected(GtkSatMap * satmap, sat_t * sat);
 static void     redraw_terminator(GtkSatMap * satmap);
 static gchar   *aoslos_time_to_str(GtkSatMap * satmap, sat_t * sat);
+static gboolean update_map_clock_text(GtkSatMap * satmap);
 static void     gtk_sat_map_load_showtracks(GtkSatMap * map);
 static void     gtk_sat_map_store_showtracks(GtkSatMap * satmap);
 static void     gtk_sat_map_load_hide_coverages(GtkSatMap * map);
@@ -191,6 +193,8 @@ static void gtk_sat_map_init(GtkSatMap * satmap,
     satmap->keepratio = FALSE;
     satmap->resize = FALSE;
     satmap->locnam_text = NULL;
+    satmap->time_text = NULL;
+    satmap->clock_tick = 0;
     satmap->curs_text = NULL;
     satmap->next_text = NULL;
     satmap->sel_text = NULL;
@@ -239,6 +243,8 @@ static void gtk_sat_map_destroy(GtkWidget * widget)
         /* free text strings */
         g_free(satmap->locnam_text);
         satmap->locnam_text = NULL;
+        g_free(satmap->time_text);
+        satmap->time_text = NULL;
         g_free(satmap->curs_text);
         satmap->curs_text = NULL;
         g_free(satmap->next_text);
@@ -772,6 +778,17 @@ static gboolean on_draw(GtkWidget * widget, cairo_t * cr, gpointer data)
         pango_cairo_show_layout(cr, layout);
     }
 
+    /* Station clock vs UTC (top-centre) */
+    if (satmap->time_text)
+    {
+        pango_layout_set_markup(layout, satmap->time_text, -1);
+        pango_layout_get_pixel_size(layout, &tw, &th);
+        cairo_move_to(cr,
+                      (gdouble)satmap->x0 + ((gdouble)satmap->width - tw) / 2.0,
+                      (gdouble)satmap->y0 + 1);
+        pango_cairo_show_layout(cr, layout);
+    }
+
     /* Next event (top-right) */
     if (satmap->eventinfo && satmap->next_text)
     {
@@ -895,6 +912,48 @@ static void update_map_size(GtkSatMap * satmap)
     }
 }
 
+/** Format station (local) clock and UTC for the map overlay. */
+static gboolean update_map_clock_text(GtkSatMap * satmap)
+{
+    gchar           stn_buff[16];
+    gchar           utc_buff[16];
+    gchar          *new_text;
+    guint           tick;
+    time_t          tim;
+    struct tm      *tms;
+
+    if (satmap->qth == NULL || satmap->infobgd == NULL)
+        return FALSE;
+
+    tick = (guint) floor(satmap->tstamp * 86400.0);
+    if (tick == satmap->clock_tick && satmap->time_text != NULL)
+        return FALSE;
+
+    satmap->clock_tick = tick;
+
+    tim = (time_t) ((satmap->tstamp - 2440587.5) * 86400.0);
+    tms = gmtime(&tim);
+    if (tms != NULL)
+        strftime(utc_buff, sizeof(utc_buff), "%H:%M:%S", tms);
+    else
+        g_strlcpy(utc_buff, "--:--:--", sizeof(utc_buff));
+
+    tms = localtime(&tim);
+    if (tms != NULL)
+        strftime(stn_buff, sizeof(stn_buff), "%H:%M:%S", tms);
+    else
+        g_strlcpy(stn_buff, "--:--:--", sizeof(stn_buff));
+
+    new_text = g_markup_printf_escaped(
+        _("<span background=\"#%s\"> %s \302\267 UTC %s </span>"),
+        satmap->infobgd, stn_buff, utc_buff);
+
+    g_free(satmap->time_text);
+    satmap->time_text = new_text;
+
+    return TRUE;
+}
+
 void gtk_sat_map_update(GtkWidget * widget)
 {
     GtkSatMap      *satmap = GTK_SAT_MAP(widget);
@@ -904,16 +963,22 @@ void gtk_sat_map_update(GtkWidget * widget)
     gint           *catnr;
     guint           h, m, s;
     gchar          *ch, *cm, *cs;
+    gboolean        clock_changed;
 
     /* check whether there are any pending resize requests */
     if (satmap->resize)
         update_map_size(satmap);
+
+    clock_changed = update_map_clock_text(satmap);
 
     /* check refresh rate and refresh sats/qth if time */
     /* FIXME add location check */
     if (satmap->counter < satmap->refresh)
     {
         satmap->counter++;
+        if (clock_changed)
+            gtk_widget_queue_draw(satmap->canvas);
+        return;
     }
     else
     {

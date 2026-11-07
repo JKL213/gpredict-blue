@@ -6560,3 +6560,93 @@ msgstr "Eine Fläche fehlt in der Vorschau, wenn rechts nicht größer als links
 msgid "Overlapping panes are marked in red."
 msgstr "Überlappende Flächen sind rot markiert."
 
+msgid "Details"
+msgstr "Details"
+
+msgid "_Cancel"
+msgstr "_Abbrechen"
+
+msgid "_Close"
+msgstr "_Schließen"
+
+msgid "Cancelled"
+msgstr "Abgebrochen"
+
+msgid "Stopped"
+msgstr "Angehalten"
+
+msgid "Download cancelled."
+msgstr "Download abgebrochen."
+
+msgid "* using proxy"
+msgstr "* Proxy wird verwendet"
+
+msgid "< curl_easy_init() failed"
+msgstr "< curl_easy_init() fehlgeschlagen"
+
+msgid "* a TLE update is already running"
+msgstr "* ein TLE-Update läuft bereits"
+
+msgid "* no TLE URLs configured"
+msgstr "* keine TLE-URLs konfiguriert"
+
+msgid "* fetching %u TLE file(s), connect timeout %lds, total timeout %lds"
+msgstr "* hole %u TLE-Datei(en), Verbindungs-Timeout %lds, Gesamt-Timeout %lds"
+
+msgid "* server refused the request. Further downloads were skipped so Gpredict does not stall."
+msgstr "* der Server hat die Anfrage abgelehnt. Weitere Downloads wurden übersprungen, damit Gpredict nicht hängen bleibt."
+
+msgid "* no reply from %s. Remaining URLs on this host were skipped."
+msgstr "* keine Antwort von %s. Weitere URLs auf diesem Host wurden übersprungen."
+
+msgid "* could not open %s"
+msgstr "* %s konnte nicht geöffnet werden"
+
+msgid "* existing satellite data was left unchanged"
+msgstr "* vorhandene Satellitendaten bleiben unverändert"
+
+msgid "* fetched %u file(s). Updating local satellite files..."
+msgstr "* %u Datei(en) geholt. Lokale Satellitendateien werden aktualisiert..."
+
+msgid "* no TLE file was saved. Existing satellite data was left unchanged."
+msgstr "* keine TLE-Datei gespeichert. Vorhandene Satellitendaten bleiben unverändert."
+
+msgid "* ERROR opening directory %s: %s"
+msgstr "* FEHLER beim Öffnen des Verzeichnisses %s: %s"
+
+msgid "* no valid TLE data in %s"
+msgstr "* keine gültigen TLE-Daten in %s"
+
+msgid "* read %d satellites from %s"
+msgstr "* %d Satelliten aus %s gelesen"
+
+msgid "* local update done: %u updated, %u skipped, %u missing, %u new"
+msgstr "* lokales Update fertig: %u aktualisiert, %u übersprungen, %u fehlend, %u neu"
+
+msgid "* could not move %s aside"
+msgstr "* %s konnte nicht beiseitegelegt werden"
+
+msgid "* could not install %s"
+msgstr "* %s konnte nicht installiert werden"
+
+msgid "* writing transponder files"
+msgstr "* schreibe Transponderdateien"
+
+msgid "* a transponder update is already running"
+msgstr "* ein Transponder-Update läuft bereits"
+
+msgid "* existing transponder data was left unchanged"
+msgstr "* vorhandene Transponderdaten bleiben unverändert"
+
+msgid "* transmitter download skipped so Gpredict does not stall."
+msgstr "* Transmitter-Download übersprungen, damit Gpredict nicht hängen bleibt."
+
+msgid "* server did not return transmitter data. Existing transponder data was left unchanged."
+msgstr "* der Server hat keine Transmitterdaten geliefert. Vorhandene Transponderdaten bleiben unverändert."
+
+msgid "* no transmitter file was saved. Existing transponder data was left unchanged."
+msgstr "* keine Transmitterdatei gespeichert. Vorhandene Transponderdaten bleiben unverändert."
+
+msgid "* transponder files updated"
+msgstr "* Transponderdateien aktualisiert"
+
