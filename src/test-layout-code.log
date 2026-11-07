@@ -1,0 +1,8 @@
+ok predef 1 parse
+ok predef 1 geometry
+ok roundtrip predef 3
+ok match predef 4
+ok custom preset index
+ok reject invalid pane
+All layout-code tests passed.
+PASS test-layout-code (exit status: 0)
