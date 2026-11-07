@@ -38,3 +38,10 @@ m4/
 GTAGS
 GRTAGS
 GPATH
+
+# Automake test harness outputs (sources stay in git)
+src/test-layout-code
+src/test-asset-paths
+src/test-*.log
+src/test-*.trs
+src/test-suite.log

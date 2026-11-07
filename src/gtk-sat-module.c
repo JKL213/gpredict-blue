@@ -82,7 +82,8 @@ static void update_autotrack(GtkSatModule * module)
     guint           i, n;
     double          next_aos;
     gint            next_sat;
-    int             min_ele = module->min_el;
+    /* Pass elevation filters events; autotrack uses the horizon, not the pass filter. */
+    int             min_ele = 0;
 
     if (module->target > 0)
         sat = g_hash_table_lookup(module->satellites, &module->target);

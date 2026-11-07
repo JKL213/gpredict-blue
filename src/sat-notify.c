@@ -271,7 +271,7 @@ void sat_notify_consider(GtkSatModule *module, sat_t *sat)
         gchar *summary = g_strdup_printf(_("AOS: %s"), label);
         gchar *body =
             g_strdup_printf(_("%s is above the horizon at %.1f\302\260."),
-                            label, sat->az);
+                            label, sat->el);
 
         send_notice(sat->tle.catnr, "aos", stamp, now, summary, body);
         g_free(body);

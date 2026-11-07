@@ -39,6 +39,7 @@ src/menubar.c
 src/mod-cfg.c
 src/mod-cfg-get-param.c
 src/mod-mgr.c
+src/net-fetch.c
 src/orbit-tools.c
 src/pass-popup-menu.c
 src/pass-to-txt.c
