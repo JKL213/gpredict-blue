@@ -45,3 +45,4 @@ src/test-asset-paths
 src/test-*.log
 src/test-*.trs
 src/test-suite.log
+src/test-xrit-schedule

@@ -95,3 +95,4 @@ src/tle-tools.c
 src/tle-update.c
 src/trsp-conf.c
 src/trsp-update.c
+src/xrit-schedule.c

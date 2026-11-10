@@ -84,6 +84,7 @@ gpredict_SOURCES = \
     rotor-conf.c rotor-conf.h \
     trsp-conf.c trsp-conf.h \
     trsp-update.c trsp-update.h \
+    xrit-schedule.c xrit-schedule.h \
     sat-cfg.c sat-cfg.h \
     sat-info.c sat-info.h \
     sat-log.c sat-log.h \
@@ -128,8 +129,8 @@ gpredict_SOURCES = \
 ##gpredict_LDADD = ./sgpsdp/libsgp4sdp4.a @PACKAGE_LIBS@
 gpredict_LDADD = @PACKAGE_LIBS@
 
-check_PROGRAMS = test-layout-code test-asset-paths
-TESTS = test-layout-code test-asset-paths
+check_PROGRAMS = test-layout-code test-asset-paths test-xrit-schedule
+TESTS = test-layout-code test-asset-paths test-xrit-schedule
 
 test_layout_code_SOURCES = \
     test-layout-code.c \
@@ -143,9 +144,17 @@ test_asset_paths_SOURCES = \
 
 test_asset_paths_LDADD = @PACKAGE_LIBS@
 
+test_xrit_schedule_SOURCES = \
+    test-xrit-schedule.c \
+    xrit-schedule.c \
+    compat.c
+
+test_xrit_schedule_LDADD = @PACKAGE_LIBS@
+
 EXTRA_DIST = \
     test-layout-code.c \
-    test-asset-paths.c
+    test-asset-paths.c \
+    test-xrit-schedule.c
 
 ## $(INTLLIBS)
 
