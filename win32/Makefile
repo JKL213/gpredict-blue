@@ -146,6 +146,7 @@ GPREDICTSRC = \
 	net-fetch.c \
 	trsp-conf.c \
 	trsp-update.c \
+	xrit-schedule.c \
 	win32-fetch.c
 
 GPREDICTOBJ = $(GPREDICTSRC:.c=.o)

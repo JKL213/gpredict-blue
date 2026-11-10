@@ -39,6 +39,7 @@
 #include "sat-pref.h"
 #include "tle-update.h"
 #include "trsp-update.h"
+#include "xrit-schedule.h"
 
 
 extern GtkWidget *app;
@@ -964,6 +965,11 @@ static void create_file_menu_items(GtkMenuShell * menu,
                      NULL);
     gtk_widget_add_accelerator(menu_item, "activate", accel_group, GDK_KEY_l,
                                GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
+    gtk_menu_shell_append(menu, menu_item);
+
+    menu_item = gtk_menu_item_new_with_mnemonic(_("LRIT/HRIT _transmission schedule"));
+    g_signal_connect(menu_item, "activate", G_CALLBACK(show_xrit_schedule_cb),
+                     app);
     gtk_menu_shell_append(menu, menu_item);
 
     menu_item = gtk_separator_menu_item_new();

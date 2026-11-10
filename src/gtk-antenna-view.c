@@ -46,11 +46,12 @@
 #include "gtk-sat-data.h"
 #include "predict-tools.h"
 #include "time-tools.h"
+#include "xrit-schedule.h"
 
 #define SKY_R           1.50
 #define GROUND_R        1.78
 #define PIVOT_Z         0.50
-#define PRIM_MAX        1400
+#define PRIM_MAX        2400
 #define TRACK_MAX       80
 #define VDIPOLE_LOBE_EL 65.0
 
@@ -108,6 +109,7 @@ typedef struct {
     double drag_x;
     double drag_y;
     int catnum;
+    const xrit_sat_t *xrit;     /* Transmission plan, or NULL. */
 } antenna_view_t;
 
 static GSList *open_views = NULL;
@@ -339,6 +341,53 @@ static void add_face(pen_t *pen, vec3 a, vec3 b, vec3 c,
 }
 
 static void add_line(pen_t *pen, vec3 a, vec3 b,
+                     double r, double g, double bcol, double alpha, double width);
+
+/* Face cut at the ground plane. The lawn is painted first, so anything
+ * below it would show on top; only the part above z = 0 is kept.
+ */
+static void add_face_above(pen_t *pen, vec3 a, vec3 b, vec3 c,
+                           double r, double g, double bcol, double alpha)
+{
+    vec3 in[3];
+    vec3 out[4];
+    int n = 0;
+    int i;
+
+    in[0] = a;
+    in[1] = b;
+    in[2] = c;
+    for (i = 0; i < 3; i++) {
+        vec3 p = in[i];
+        vec3 q = in[(i + 1) % 3];
+
+        if (p.z >= 0.0)
+            out[n++] = p;
+        if ((p.z >= 0.0) != (q.z >= 0.0)) {
+            double k = p.z / (p.z - q.z);
+
+            out[n++] = vadd(p, vscale(vsub(q, p), k));
+        }
+    }
+    for (i = 1; i + 1 < n; i++)
+        add_face(pen, out[0], out[i], out[i + 1], r, g, bcol, alpha, 0);
+}
+
+/* Line cut at the ground plane, same reason. */
+static void add_line_above(pen_t *pen, vec3 a, vec3 b,
+                           double r, double g, double bcol, double alpha,
+                           double width)
+{
+    if (a.z < 0.0 && b.z < 0.0)
+        return;
+    if (a.z < 0.0)
+        a = vadd(a, vscale(vsub(b, a), a.z / (a.z - b.z)));
+    else if (b.z < 0.0)
+        b = vadd(b, vscale(vsub(a, b), b.z / (b.z - a.z)));
+    add_line(pen, a, b, r, g, bcol, alpha, width);
+}
+
+static void add_line(pen_t *pen, vec3 a, vec3 b,
                      double r, double g, double bcol, double alpha, double width)
 {
     prim_t prim;
@@ -449,35 +498,26 @@ static void add_lobe(pen_t *pen, double az, double el,
     }
 
     for (j = 0; j < segs; j++) {
-        /* A patch that crosses the floor is dropped whole. The lawn is
-         * painted first, and a beam through it would show on top.
-         */
-        if (near_ring[j].z < 0.0 || far_ring[j].z < 0.0 ||
-            near_ring[j + 1].z < 0.0 || far_ring[j + 1].z < 0.0)
-            continue;
-        add_face(pen, near_ring[j], far_ring[j], far_ring[j + 1],
-                 r, g, bcol, alpha, 0);
-        add_face(pen, near_ring[j], far_ring[j + 1], near_ring[j + 1],
-                 r, g, bcol, alpha, 0);
+        add_face_above(pen, near_ring[j], far_ring[j], far_ring[j + 1],
+                       r, g, bcol, alpha);
+        add_face_above(pen, near_ring[j], far_ring[j + 1], near_ring[j + 1],
+                       r, g, bcol, alpha);
     }
 
     if (cap) {
         vec3 centre = aim_point(vmk(0.0, y_far, 0.0), az, el);
 
-        for (j = 0; j < segs; j++) {
-            if (centre.z < 0.0 || far_ring[j].z < 0.0 || far_ring[j + 1].z < 0.0)
-                continue;
-            add_face(pen, centre, far_ring[j], far_ring[j + 1],
-                     r, g, bcol, alpha + 0.06, 0);
-        }
+        for (j = 0; j < segs; j++)
+            add_face_above(pen, centre, far_ring[j], far_ring[j + 1],
+                           r, g, bcol, alpha + 0.06);
     }
 
     for (j = 0; j < segs; j++) {
-        if (far_ring[j].z < 0.0 || far_ring[j + 1].z < 0.0)
-            continue;
-        add_line(pen, far_ring[j], far_ring[j + 1], r * 0.35, g * 0.45, bcol, 0.95, 1.6);
-        if (j % (segs / 4) == 0 && near_ring[j].z >= 0.0)
-            add_line(pen, near_ring[j], far_ring[j], r * 0.35, g * 0.45, bcol, 0.80, 1.0);
+        add_line_above(pen, far_ring[j], far_ring[j + 1],
+                       r * 0.35, g * 0.45, bcol, 0.95, 1.6);
+        if (j % (segs / 4) == 0)
+            add_line_above(pen, near_ring[j], far_ring[j],
+                           r * 0.35, g * 0.45, bcol, 0.80, 1.0);
     }
 }
 
@@ -807,7 +847,7 @@ static void draw_banner(cairo_t *cr, const antenna_scene_t *scene)
     double red, green, blue;
 
     line1 = g_strdup_printf("%s: %s", kind_name(scene->kind), phrase);
-    line2 = g_strdup_printf(_("offset %.0f    beam %.0f"), offset, beam);
+    line2 = g_strdup_printf(_("offset %.0f\302\260    beam %.0f\302\260"), offset, beam);
 
     cairo_select_font_face(cr, "Sans", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
     cairo_set_font_size(cr, 14.0);
@@ -978,13 +1018,21 @@ static void update_status(antenna_view_t *view)
     gchar *text;
 
     if (view->sat->el >= 0.0) {
-        text = g_strdup_printf(_("%s    Az %.0f    El %.0f    %.0f km    "
-                                 "offset %.0f    beam %.0f"),
+        text = g_strdup_printf(_("%s    Az %.0f\302\260    El %.0f\302\260    %.0f km    "
+                                 "offset %.0f\302\260    beam %.0f\302\260"),
                                phrase, view->sat->az, view->sat->el,
                                view->sat->range, offset, beam);
     } else {
-        text = g_strdup_printf(_("%s    Az %.0f    El %.0f"),
+        text = g_strdup_printf(_("%s    Az %.0f\302\260    El %.0f\302\260"),
                                phrase, view->sat->az, view->sat->el);
+    }
+    if (view->xrit != NULL) {
+        gchar *plan = xrit_schedule_status_text(view->xrit, get_current_daynum());
+        gchar *both = g_strdup_printf("%s\n%s", text, plan);
+
+        g_free(plan);
+        g_free(text);
+        text = both;
     }
     gtk_label_set_text(GTK_LABEL(view->status), text);
     g_free(text);
@@ -1010,9 +1058,26 @@ static void apply_follow(antenna_view_t *view)
         el = VDIPOLE_LOBE_EL;
     view->ant_el = el;
     view->updating = 1;
-    gtk_spin_button_set_value(GTK_SPIN_BUTTON(view->az_spin), view->ant_az);
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(view->az_spin),
+                              view->ant_az >= 359.5 ? 0.0 : view->ant_az);
     gtk_spin_button_set_value(GTK_SPIN_BUTTON(view->el_spin), view->ant_el);
     view->updating = 0;
+}
+
+/* Private copy of a live satellite, converted elements and SGP4/SDP4
+ * state included. gtk_sat_data_copy_sat() runs select_ephemeris(), which
+ * converts the already converted elements a second time and puts the
+ * satellite in the wrong place.
+ */
+static sat_t *clone_sat(const sat_t *sat)
+{
+    sat_t *copy = g_new(sat_t, 1);
+
+    *copy = *sat;
+    copy->name = g_strdup(sat->name);
+    copy->nickname = g_strdup(sat->nickname);
+    copy->website = g_strdup(sat->website);
+    return copy;
 }
 
 static void push_track(antenna_view_t *view, double az, double el)
@@ -1026,61 +1091,48 @@ static void push_track(antenna_view_t *view, double az, double el)
     view->track_n++;
 }
 
+/* Sky track of the current pass, or of the next one while the satellite
+ * is down, sampled evenly from AOS to LOS. Satellites without AOS
+ * (geostationary) get no track; they do not move across the sky.
+ */
 static void rebuild_track(antenna_view_t *view)
 {
     sat_t *probe;
     double now;
-    double t;
-    double back_az[30];
-    double back_el[30];
-    int back_n = 0;
-    int guard = 0;
+    double aos;
+    double los;
     int i;
 
     view->track_n = 0;
-    probe = g_new0(sat_t, 1);
-    gtk_sat_data_copy_sat(view->sat, probe, &view->qth);
+    probe = clone_sat(view->sat);
     now = get_current_daynum();
 
-    t = now;
-    while (back_n < 30 && guard < 40) {
-        guard++;
-        t -= 15.0 / 86400.0;
-        predict_calc(probe, &view->qth, t);
-        if (probe->el < 0.0)
-            break;
-        back_az[back_n] = probe->az;
-        back_el[back_n] = probe->el;
-        back_n++;
-    }
-    for (i = back_n - 1; i >= 0; i--)
-        push_track(view, back_az[i], back_el[i]);
-
     predict_calc(probe, &view->qth, now);
-    if (probe->el >= 0.0)
-        push_track(view, probe->az, probe->el);
-
-    t = now;
-    if (probe->el < 0.0) {
-        double limit = now + 12.0 / 24.0;
-
-        while (t < limit && guard < 320 && probe->el < 0.0) {
-            guard++;
-            t += 180.0 / 86400.0;
-            predict_calc(probe, &view->qth, t);
+    if (probe->el >= 0.0) {
+        /* Walk back to the rise, half a minute at a time. A satellite
+         * that is still up six hours earlier never sets as far as this
+         * view is concerned (geostationary, also when inclined).
+         */
+        aos = now;
+        for (i = 0; i < 720 && probe->el >= 0.0; i++) {
+            aos -= 30.0 / 86400.0;
+            predict_calc(probe, &view->qth, aos);
         }
+        if (probe->el >= 0.0)
+            aos = 0.0;
+    } else {
+        aos = find_aos(probe, &view->qth, now, 2.0);
     }
+    los = aos > 0.1 ? find_los(probe, &view->qth, now, 2.0) : 0.0;
 
-    if (probe->el >= 0.0 && view->track_n == 0)
-        push_track(view, probe->az, probe->el);
+    /* A pass longer than half a day is no pass to draw. */
+    if (aos > 0.1 && los > aos && los - aos < 0.5) {
+        for (i = 0; i < TRACK_MAX; i++) {
+            double t = aos + (los - aos) * (double)i / (double)(TRACK_MAX - 1);
 
-    while (view->track_n < TRACK_MAX && guard < 420 && probe->el >= 0.0) {
-        guard++;
-        t += 15.0 / 86400.0;
-        predict_calc(probe, &view->qth, t);
-        if (probe->el < 0.0)
-            break;
-        push_track(view, probe->az, probe->el);
+            predict_calc(probe, &view->qth, t);
+            push_track(view, probe->az, probe->el < 0.0 ? 0.0 : probe->el);
+        }
     }
 
     gtk_sat_data_free_sat(probe);
@@ -1252,8 +1304,9 @@ static gboolean on_motion(GtkWidget *widget, GdkEventMotion *event, gpointer dat
     dy = event->y - view->drag_y;
     view->drag_x = event->x;
     view->drag_y = event->y;
-    view->cam_yaw += dx * 0.40;
-    view->cam_pitch -= dy * 0.30;
+    /* The scene follows the pointer, so the camera goes the other way. */
+    view->cam_yaw -= dx * 0.40;
+    view->cam_pitch += dy * 0.30;
     if (view->cam_pitch < 8.0)
         view->cam_pitch = 8.0;
     if (view->cam_pitch > 80.0)
@@ -1331,9 +1384,9 @@ void show_antenna_view(sat_t *sat, qth_t *qth, GtkWindow *parent)
     view->qth.lat = qth->lat;
     view->qth.lon = qth->lon;
     view->qth.alt = qth->alt;
-    view->sat = g_new0(sat_t, 1);
-    gtk_sat_data_copy_sat(sat, view->sat, &view->qth);
+    view->sat = clone_sat(sat);
     view->catnum = sat->tle.catnr;
+    view->xrit = xrit_schedule_find(view->catnum);
     view->kind = ANTENNA_LPDA;
     view->follow = 1;
     view->cam_yaw = 34.0;
@@ -1388,6 +1441,16 @@ void show_antenna_view(sat_t *sat, qth_t *qth, GtkWindow *parent)
 
     reset = gtk_button_new_with_label(_("Reset view"));
     gtk_box_pack_end(GTK_BOX(hbox), reset, FALSE, FALSE, 0);
+
+    if (view->xrit != NULL) {
+        GtkWidget *plan = gtk_button_new_with_label(_("Transmission schedule"));
+
+        gtk_widget_set_tooltip_text(plan,
+                                    _("Show when this satellite sends LRIT and HRIT."));
+        g_signal_connect(plan, "clicked", G_CALLBACK(show_xrit_schedule_cb),
+                         view->window);
+        gtk_box_pack_end(GTK_BOX(hbox), plan, FALSE, FALSE, 0);
+    }
 
     view->hint = gtk_label_new(kind_hint(view->kind));
     gtk_widget_set_halign(view->hint, GTK_ALIGN_START);

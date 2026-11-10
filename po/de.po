@@ -6482,14 +6482,14 @@ msgstr "Am Keulenrand"
 msgid "Outside the main lobe"
 msgstr "Außerhalb der Hauptkeule"
 
-msgid "offset %.0f    beam %.0f"
-msgstr "Versatz %.0f    Keule %.0f"
+msgid "offset %.0f°    beam %.0f°"
+msgstr "Versatz %.0f°    Keule %.0f°"
 
-msgid "%s    Az %.0f    El %.0f    %.0f km    offset %.0f    beam %.0f"
-msgstr "%s    Az %.0f    El %.0f    %.0f km    Versatz %.0f    Keule %.0f"
+msgid "%s    Az %.0f°    El %.0f°    %.0f km    offset %.0f°    beam %.0f°"
+msgstr "%s    Az %.0f°    El %.0f°    %.0f km    Versatz %.0f°    Keule %.0f°"
 
-msgid "%s    Az %.0f    El %.0f"
-msgstr "%s    Az %.0f    El %.0f"
+msgid "%s    Az %.0f°    El %.0f°"
+msgstr "%s    Az %.0f°    El %.0f°"
 
 msgid "Turn the heading until the pass lies in the wide lobe. The V stays horizontal."
 msgstr "Drehe die Öffnung, bis der Überflug in der breiten Keule liegt. Das V bleibt waagerecht."
@@ -6650,3 +6650,63 @@ msgstr "* keine Transmitterdatei gespeichert. Vorhandene Transponderdaten bleibe
 msgid "* transponder files updated"
 msgstr "* Transponderdateien aktualisiert"
 
+
+msgid "Transmission schedule"
+msgstr "Sendeplan"
+
+msgid "Show when this satellite sends LRIT and HRIT."
+msgstr "Zeigt, wann dieser Satellit LRIT und HRIT sendet."
+
+msgid "LRIT/HRIT _transmission schedule"
+msgstr "LRIT/HRIT-_Sendeplan"
+
+msgid "LRIT/HRIT transmission schedule"
+msgstr "LRIT/HRIT-Sendeplan"
+
+msgid "%s on air, %d min left"
+msgstr "%s wird gesendet, noch %d min"
+
+msgid "No transmission planned"
+msgstr "Keine Sendung geplant"
+
+msgid "Next: %s at %02d:%02d UTC, in %d h %02d min"
+msgstr "Nächste Sendung: %s um %02d:%02d UTC, in %d h %02d min"
+
+msgid "Next: %s at %02d:%02d UTC, in %d min"
+msgstr "Nächste Sendung: %s um %02d:%02d UTC, in %d min"
+
+msgid "unconfirmed plan"
+msgstr "Plan unbestätigt"
+
+msgid "HRIT transmission"
+msgstr "HRIT-Sendung"
+
+msgid "LRIT transmission"
+msgstr "LRIT-Sendung"
+
+msgid "Plan not confirmed by reception"
+msgstr "Plan nicht durch Empfang bestätigt"
+
+msgid "Current time"
+msgstr "Aktuelle Zeit"
+
+msgid "No transmission"
+msgstr "Keine Sendung"
+
+msgid "All times UTC. Transmission lengths are estimates; the operator may change the plan."
+msgstr "Alle Zeiten in UTC. Die Sendedauern sind Schätzwerte; der Betreiber kann den Plan ändern."
+
+msgid "Plan file: %s"
+msgstr "Plandatei: %s"
+
+msgid "Reload plan"
+msgstr "Plan neu laden"
+
+msgid "Read the plan file again after editing it."
+msgstr "Liest die Plandatei nach einer Änderung erneut ein."
+
+msgid "%s: Ignoring schedule entry %s of %s"
+msgstr "%s: Sendeplan-Eintrag %s von %s wird ignoriert"
+
+msgid "%s: Could not read %s (%s)"
+msgstr "%s: %s konnte nicht gelesen werden (%s)"
