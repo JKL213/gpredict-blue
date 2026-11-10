@@ -73,6 +73,10 @@ int main(void)
     check(xrit_schedule_find(67756) != NULL &&
           xrit_schedule_find(67756)->tentative, "ELEKTRO-L 5 plan is tentative");
 
+    check(sat != NULL && sat->cyrillic != NULL &&
+          g_str_has_suffix(sat->cyrillic, "-\320\233 \342\204\2263"),
+          "ELEKTRO-L 3 carries its Russian name");
+
     xrit_schedule_state(sat, 3 * 60 + 20, &st);
     check(st.now == XRIT_HRIT && st.remaining == 7, "03:20 HRIT, 7 min left");
     check(st.next == XRIT_LRIT && st.next_start == 3 * 60 + 42 && st.next_in == 22,
@@ -108,6 +112,7 @@ int main(void)
     check(st.next == XRIT_LRIT && st.next_start == 360, "then LRIT at 06:00");
     xrit_schedule_state(sat, 18 * 60 + 5, &st);
     check(st.now == XRIT_LRIT, "18:05 second LRIT of the day");
+    check(sat->cyrillic == NULL, "unknown satellite has no Russian name");
 
     /* An unreadable file falls back to the built-in plan. */
     g_file_set_contents(file, "this is not a key file\n", -1, NULL);

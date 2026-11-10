@@ -70,6 +70,7 @@ static const char default_conf[] =
     "# Every key starting with hrit or lrit (hrit, hrit2, ...) is one\n"
     "# repeating transmission:  first start HH:MM UTC ; length in minutes ;\n"
     "# repeat interval in minutes (0 = once a day).\n"
+    "# cyrillic is the name in Russian letters, shown next to the Latin one.\n"
     "# tentative=true marks a plan that reception has not confirmed.\n"
     "#\n"
     "# The lengths below are estimates. Delete this file to get the\n"
@@ -77,6 +78,7 @@ static const char default_conf[] =
     "\n"
     "[ELEKTRO-L 3]\n"
     "catnum=44903\n"
+    "cyrillic=\320\255\320\233\320\225\320\232\320\242\320\240\320\236-\320\233 \342\204\2263\n"
     "position=14.5\302\260 W\n"
     "frequency=1691 MHz\n"
     "tentative=false\n"
@@ -85,6 +87,7 @@ static const char default_conf[] =
     "\n"
     "[ELEKTRO-L 5]\n"
     "catnum=67756\n"
+    "cyrillic=\320\255\320\233\320\225\320\232\320\242\320\240\320\236-\320\233 \342\204\2265\n"
     "position=76\302\260 E\n"
     "frequency=1691 MHz\n"
     "tentative=true\n"
@@ -102,9 +105,34 @@ static void free_sat(gpointer data)
     xrit_sat_t *sat = data;
 
     g_free(sat->name);
+    g_free(sat->cyrillic);
     g_free(sat->position);
     g_free(sat->frequency);
     g_free(sat);
+}
+
+/* Russian name of the ELEKTRO-L series for plan files without one. */
+static gchar *known_cyrillic(int catnum)
+{
+    int number = 0;
+
+    switch (catnum) {
+    case 41105:
+        number = 2;
+        break;
+    case 44903:
+        number = 3;
+        break;
+    case 55506:
+        number = 4;
+        break;
+    case 67756:
+        number = 5;
+        break;
+    default:
+        return NULL;
+    }
+    return g_strdup_printf("%s%d", "\320\255\320\233\320\225\320\232\320\242\320\240\320\236-\320\233 \342\204\226", number);
 }
 
 static gchar *conf_path(void)
@@ -157,6 +185,13 @@ static void load_from(GKeyFile *kf)
 
         sat->name = g_strdup(groups[g]);
         sat->catnum = g_key_file_get_integer(kf, groups[g], "catnum", NULL);
+        sat->cyrillic = g_key_file_get_string(kf, groups[g], "cyrillic", NULL);
+        if (sat->cyrillic == NULL)
+            sat->cyrillic = known_cyrillic(sat->catnum);
+        else if (sat->cyrillic[0] == '\0') {
+            g_free(sat->cyrillic);
+            sat->cyrillic = NULL;
+        }
         sat->position = g_key_file_get_string(kf, groups[g], "position", NULL);
         sat->frequency = g_key_file_get_string(kf, groups[g], "frequency", NULL);
         sat->tentative = g_key_file_get_boolean(kf, groups[g], "tentative", NULL);
@@ -448,15 +483,20 @@ static void draw_block(cairo_t *cr, const xrit_sat_t *sat, double x0, double y,
     cairo_text_extents_t ext;
     gchar *status;
     gchar *note;
+    gchar *title;
     double mid = x0 + chart_w / 2.0;
     double now_x;
     int hour;
 
     /* Name in a blue frame, as on the operator's chart. */
+    if (sat->cyrillic != NULL)
+        title = g_strdup_printf("%s  \302\267  %s", sat->name, sat->cyrillic);
+    else
+        title = g_strdup(sat->name);
     cairo_select_font_face(cr, "Sans", CAIRO_FONT_SLANT_NORMAL,
                            CAIRO_FONT_WEIGHT_BOLD);
     cairo_set_font_size(cr, 12.0);
-    cairo_text_extents(cr, sat->name, &ext);
+    cairo_text_extents(cr, title, &ext);
     cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);
     cairo_rectangle(cr, mid - ext.width / 2.0 - 8.0, y, ext.width + 16.0, NAME_H - 3.0);
     cairo_fill_preserve(cr);
@@ -464,7 +504,8 @@ static void draw_block(cairo_t *cr, const xrit_sat_t *sat, double x0, double y,
     cairo_set_line_width(cr, 2.0);
     cairo_stroke(cr);
     cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
-    text_at(cr, mid, y + NAME_H - 8.5, sat->name, 12.0, 1, 0.5);
+    text_at(cr, mid, y + NAME_H - 8.5, title, 12.0, 1, 0.5);
+    g_free(title);
     y += NAME_H + 4.0;
 
     /* Hours of the UTC day. */

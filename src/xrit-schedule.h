@@ -44,6 +44,7 @@ typedef struct {
 typedef struct {
     int catnum;
     gchar *name;
+    gchar *cyrillic;            /* Name in Russian letters, or NULL. */
     gchar *position;            /* Orbital slot, free text. */
     gchar *frequency;           /* Downlink, free text. */
     gboolean tentative;         /* Plan not confirmed by reception. */
