@@ -7,6 +7,7 @@ AM_CPPFLAGS = \
 	-DPACKAGE_DATA_DIR=\""$(datadir)/gpredict"\" \
 	-DPACKAGE_PIXMAPS_DIR=\""$(datadir)/pixmaps/gpredict"\" \
 	-DPACKAGE_LOCALE_DIR=\""$(prefix)/share/locale"\" \
+	-DGPREDICT_SOURCE_DIR=\""$(abs_top_srcdir)"\" \
 	-DGTK_DISABLE_SINGLE_INCLUDES \
 	-DG_DISABLE_DEPRECATED \
 	-DGDK_DISABLE_DEPRECATED \

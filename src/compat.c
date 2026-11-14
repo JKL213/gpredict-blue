@@ -93,7 +93,19 @@ static gchar *exe_based_source_root(void)
     if (!asset_probe_pixmaps(pixmaps) || !asset_probe_data_root(root)) {
         g_free(pixmaps);
         g_free(root);
-        return NULL;
+        root = NULL;
+#ifdef GPREDICT_SOURCE_DIR
+        /* Out-of-tree (VPATH) build such as make distcheck: the binary
+           lives in the build tree, the assets in the configured source
+           tree. */
+        pixmaps = g_build_filename(GPREDICT_SOURCE_DIR, "pixmaps", NULL);
+        if (asset_probe_pixmaps(pixmaps) &&
+            asset_probe_data_root(GPREDICT_SOURCE_DIR)) {
+            root = g_strdup(GPREDICT_SOURCE_DIR);
+        }
+        g_free(pixmaps);
+#endif
+        return root;
     }
 
     g_free(pixmaps);
