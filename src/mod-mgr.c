@@ -85,7 +85,7 @@ GtkWidget      *mod_mgr_create(void)
 {
     gchar          *openmods = NULL;
     gchar         **mods;
-    gint            count, i;
+    gint            count, i, j;
     GtkWidget      *module;
     gchar          *modfile;
     gchar          *confdir;
@@ -107,6 +107,23 @@ GtkWidget      *mod_mgr_create(void)
 
         for (i = 0; i < count; i++)
         {
+            /* skip modules listed more than once */
+            for (j = 0; j < i; j++)
+                if (!g_strcmp0(mods[i], mods[j]))
+                    break;
+
+            if (j < i)
+            {
+                sat_log_log(SAT_LOG_LEVEL_INFO,
+                            _("%s: Skipping duplicate module %s"),
+                            __func__, mods[i]);
+
+                /* keep the saved page pointing at the same module */
+                if (gtk_notebook_get_n_pages(GTK_NOTEBOOK(nbook)) < page)
+                    page--;
+
+                continue;
+            }
 
             confdir = get_modules_dir();
             modfile = g_strconcat(confdir, G_DIR_SEPARATOR_S,
@@ -389,6 +406,44 @@ gboolean mod_mgr_mod_is_visible(GtkWidget * module)
     }
 
     return retcode;
+}
+
+/* Find an open module by name. Returns NULL if no such module is open. */
+GtkWidget      *mod_mgr_get_module(const gchar * name)
+{
+    GSList         *node;
+
+    for (node = modules; node != NULL; node = node->next)
+    {
+        if (!g_strcmp0(GTK_SAT_MODULE(node->data)->name, name))
+            return GTK_WIDGET(node->data);
+    }
+
+    return NULL;
+}
+
+/*
+ * Bring an open module to the front.
+ *
+ * A docked module is selected in the notebook and the main window is
+ * raised. An undocked module has its own window raised.
+ */
+void mod_mgr_raise_module(GtkWidget * module)
+{
+    gint            page;
+
+    if (GTK_SAT_MODULE(module)->state == GTK_SAT_MOD_STATE_DOCKED)
+    {
+        page = gtk_notebook_page_num(GTK_NOTEBOOK(nbook), module);
+        if (page != -1)
+            gtk_notebook_set_current_page(GTK_NOTEBOOK(nbook), page);
+
+        gtk_window_present(GTK_WINDOW(app));
+    }
+    else if (GTK_SAT_MODULE(module)->win != NULL)
+    {
+        gtk_window_present(GTK_WINDOW(GTK_SAT_MODULE(module)->win));
+    }
 }
 
 /*

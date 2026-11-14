@@ -108,10 +108,6 @@ static sat_map_obj_t *find_sat_at_pos(GtkSatMap * satmap, gfloat mx, gfloat my);
 
 static GtkBoxClass *parent_class = NULL;
 
-/* Temporary arrays for footprint calculation */
-static gdouble *temp_points1 = NULL;
-static gdouble *temp_points2 = NULL;
-
 /** Convert rgba color to cairo-friendly format */
 static void rgba_to_cairo(guint32 rgba, gdouble * r, gdouble * g,
                           gdouble * b, gdouble * a)
@@ -262,10 +258,10 @@ static void gtk_sat_map_destroy(GtkWidget * widget)
         satmap->terminator_count = 0;
 
         /* free temporary point arrays */
-        g_free(temp_points1);
-        temp_points1 = NULL;
-        g_free(temp_points2);
-        temp_points2 = NULL;
+        g_free(satmap->temp_points1);
+        satmap->temp_points1 = NULL;
+        g_free(satmap->temp_points2);
+        satmap->temp_points2 = NULL;
     }
     (*GTK_WIDGET_CLASS(parent_class)->destroy) (widget);
 }
@@ -400,8 +396,8 @@ GtkWidget      *gtk_sat_map_new(GKeyFile * cfgdata, GHashTable * sats,
     satmap->y0 = 0;
 
     /* Allocate temporary point arrays for footprint calculation */
-    temp_points1 = g_new0(gdouble, 720);
-    temp_points2 = g_new0(gdouble, 720);
+    satmap->temp_points1 = g_new0(gdouble, 720);
+    satmap->temp_points2 = g_new0(gdouble, 720);
 
     /* Connect signals */
     gtk_widget_add_events(satmap->canvas, GDK_POINTER_MOTION_MASK |
@@ -1491,16 +1487,16 @@ static guint calculate_footprint(GtkSatMap * satmap, sat_t * sat,
         lonlat_to_xy(satmap, rangelon, rangelat, &sx, &sy);
         lonlat_to_xy(satmap, mlon, rangelat, &msx, &msy);
 
-        temp_points1[2 * azi] = sx;
-        temp_points1[2 * azi + 1] = sy;
+        satmap->temp_points1[2 * azi] = sx;
+        satmap->temp_points1[2 * azi + 1] = sy;
 
-        temp_points1[718 - 2 * azi] = msx;
-        temp_points1[719 - 2 * azi] = msy;
+        satmap->temp_points1[718 - 2 * azi] = msx;
+        satmap->temp_points1[719 - 2 * azi] = msy;
     }
 
     if (pole_is_covered(sat))
     {
-        sort_points_x(satmap, sat, temp_points1, 360);
+        sort_points_x(satmap, sat, satmap->temp_points1, 360);
         numrc = 1;
         n1 = 360;
         n2 = 0;
@@ -1510,7 +1506,8 @@ static guint calculate_footprint(GtkSatMap * satmap, sat_t * sat,
         lonlat_to_xy(satmap, sat->ssplon, sat->ssplat, &ssx, &ssy);
         n1 = 360;
         n2 = 360;
-        split_points(satmap, sat, ssx, temp_points1, &n1, temp_points2, &n2);
+        split_points(satmap, sat, ssx, satmap->temp_points1, &n1,
+                     satmap->temp_points2, &n2);
         numrc = 2;
     }
     else
@@ -1522,14 +1519,14 @@ static guint calculate_footprint(GtkSatMap * satmap, sat_t * sat,
 
     g_free(obj->range1_points);
     obj->range1_points = g_new(gdouble, n1 * 2);
-    memcpy(obj->range1_points, temp_points1, n1 * 2 * sizeof(gdouble));
+    memcpy(obj->range1_points, satmap->temp_points1, n1 * 2 * sizeof(gdouble));
     obj->range1_count = n1;
 
     if (numrc == 2 && n2 > 0)
     {
         g_free(obj->range2_points);
         obj->range2_points = g_new(gdouble, n2 * 2);
-        memcpy(obj->range2_points, temp_points2, n2 * 2 * sizeof(gdouble));
+        memcpy(obj->range2_points, satmap->temp_points2, n2 * 2 * sizeof(gdouble));
         obj->range2_count = n2;
     }
     else

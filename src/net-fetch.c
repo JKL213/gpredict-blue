@@ -20,12 +20,24 @@
 #include <stdio.h>
 #include <string.h>
 
-#ifdef WIN32
-#include <io.h>
+/*
+ * Backend choice follows upstream: HAVE_WIN32_FETCH is defined only by
+ * win32/Makefile, which builds win32-fetch.c instead of linking libcurl.
+ * WIN32 alone is not a reliable selector because mingw-w64's curl.h
+ * defines it, so native MSYS2 autotools builds keep using libcurl.
+ */
+#ifdef HAVE_WIN32_FETCH
 #include "win32-fetch.h"
 #else
 #include <curl/curl.h>
+#ifndef _WIN32
 #include <sys/select.h>
+#endif
+#endif
+
+#ifdef _WIN32
+#include <io.h>
+#else
 #include <unistd.h>
 #endif
 
@@ -114,7 +126,7 @@ static void truncate_file(FILE *outfile)
         return;
 
     fd = fileno(outfile);
-#ifdef WIN32
+#ifdef _WIN32
     _chsize(fd, 0);
 #else
     if (ftruncate(fd, 0) != 0)
@@ -292,7 +304,7 @@ static void log_result(GtkWidget *logview, long http, double seconds,
     g_free(snippet);
 }
 
-#ifdef WIN32
+#ifdef HAVE_WIN32_FETCH
 
 net_fetch_result_t net_fetch_to_file(const gchar *url, FILE *outfile,
                                      const gchar *proxy, GtkWidget *logview,
