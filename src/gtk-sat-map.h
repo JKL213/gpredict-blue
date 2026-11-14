@@ -101,6 +101,10 @@ typedef struct {
     gint            terminator_count;   /*!< Number of terminator points. */
     gdouble         terminator_last_tstamp;     /*!< Timestamp of the last terminator drawn. */
 
+    /* Temporary arrays for footprint calculation */
+    gdouble        *temp_points1;
+    gdouble        *temp_points2;
+
     gdouble         naos;       /*!< Next event time. */
     gint            ncat;       /*!< Next event catnum. */
 

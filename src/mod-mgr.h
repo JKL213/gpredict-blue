@@ -9,5 +9,7 @@ gboolean        mod_mgr_mod_is_visible(GtkWidget * module);
 gint            mod_mgr_dock_module(GtkWidget * module);
 gint            mod_mgr_undock_module(GtkWidget * module);
 void            mod_mgr_reload_sats(void);
+GtkWidget      *mod_mgr_get_module(const gchar * name);
+void            mod_mgr_raise_module(GtkWidget * module);
 
 #endif

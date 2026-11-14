@@ -156,5 +156,26 @@ EXTRA_DIST = \
     test-asset-paths.c \
     test-xrit-schedule.c
 
+if MINGW
+## GUI subsystem: double-clicking gpredict.exe must not open a console
+## window; diagnostics go to the log file (win32/Makefile does the same).
+gpredict_LDFLAGS = -mwindows
+endif
+
+if W32RES
+## App icon + version info in the PE resources (Explorer/taskbar icon).
+gpredict_res = gpredict.res
+gpredict_LDADD += $(gpredict_res)
+CLEANFILES = $(gpredict_res)
+$(gpredict_res): $(top_srcdir)/win32/gpredict.rc \
+                 $(top_srcdir)/win32/resource.h \
+                 $(top_srcdir)/win32/icons/gpredict-icon.ico
+	$(WINDRES) $(AM_RCFLAGS) \
+		--define VERMAJ=$(VERMAJ) --define VERMIN=$(VERMIN) \
+		--define VERBLD=$(VERBLD) \
+		--include-dir=$(top_srcdir)/win32 --output-format=coff \
+		--input=$(top_srcdir)/win32/gpredict.rc --output=$@
+endif
+
 ## $(INTLLIBS)
 

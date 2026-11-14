@@ -410,6 +410,19 @@ static void menubar_open_mod_cb(GtkWidget * widget, gpointer data)
         sat_log_log(SAT_LOG_LEVEL_DEBUG, _("%s: Open module %s."), __func__,
                     modnam);
 
+        /* if the module is already open, bring it to the front instead of
+           opening a second copy that shares the same .mod file */
+        module = mod_mgr_get_module(modnam);
+        if (module != NULL)
+        {
+            sat_log_log(SAT_LOG_LEVEL_INFO,
+                        _("%s: Module %s is already open."), __func__,
+                        modnam);
+            mod_mgr_raise_module(module);
+            g_free(modnam);
+            return;
+        }
+
         confdir = get_modules_dir();
         modfile =
             g_strconcat(confdir, G_DIR_SEPARATOR_S, modnam, ".mod", NULL);

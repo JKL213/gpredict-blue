@@ -1,38 +1,6 @@
 
 gpredict-blue
-=============
-
-This repository is a peak AI slop fork of Alexandru Csete's amazing GPREDICT program for my (DN9JUR)s personal use. 
-
-Most of this repository's code is not stable enough to genuinely be merged into the Gpredict project, and will therefore most likely not match the standards set. 
-
-As Gpredict Blue is just a very, very personal fork, there are currently no binaries provided, so you will have to compile it yourself. The process does not differ from Gpredict's standard. 
-
-Features include:
-- Frequency panel to show the frequencies of a satellite without having to open a context menu. 
-- Turnable polar view with antenna/dish pointing helper.
-- And more to come!
-
-Gpredict itself remains the canonical program. It is written and maintained
-by Alexandru Csete, OZ9AEC.
-
-  Original homepage:    https://oz9aec.dk/gpredict/
-  Original manual:      https://oz9aec.dk/gpredict/documents.php
-  Original source:      https://github.com/csete/gpredict
-  Original forum:       https://community.libre.space/c/gpredict
-  Original discussions: https://github.com/csete/gpredict/discussions
-  This fork:            https://github.com/jkl213/gpredict-blue
-
-http://gpredict.oz9aec.net/ still redirects to that homepage.
-
-General questions, bug reports, and contributions for Gpredict belong with
-the original project. Personal changes for this fork live in this repository.
-
-
-Gpredict
---------
-
-Gpredict is a real time satellite tracking and orbit prediction program
+======Gpredict is a real time satellite tracking and orbit prediction program
 for the Linux desktop. It uses the SGP4/SDP4 propagation algorithms together
 with NORAD two-line element sets (TLE).
 
@@ -75,7 +43,7 @@ often with -dev or -devel in the package name, e.g. libgtk-3-dev. On Debian and
 Ubuntu systems you can install the build dependencies using:
 
   sudo apt install libtool intltool autoconf automake libcurl4-openssl-dev
-  sudo apt install pkg-config libglib2.0-dev libgtk-3-dev
+  sudo apt install pkg-config libglib2.0-dev libgtk-3-dev autopoint
 
 On Fedora / RHEL (dnf), install the same toolchain and -devel packages with:
 
@@ -147,6 +115,14 @@ If your host is missing autotools or Gtk development packages and you use
 Podman or Docker, you can reproduce a full build inside a Fedora container by
 bind-mounting this directory to /src, running the same dnf install commands as
 above, then ./autogen.sh and make from /src.
+
+Windows
+-------
+
+Native MSYS2/MinGW-w64 builds and Linux cross-builds (which the CI uses
+to produce Windows artifacts) are documented in doc/BUILDING-WINDOWS.md;
+the sysroot/packaging helpers live in tools/. The legacy win32/Makefile
+flow is described in win32/README.
 
 
 Using Gpredict

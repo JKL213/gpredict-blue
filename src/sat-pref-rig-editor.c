@@ -45,6 +45,8 @@ static GtkWidget *defDnFreq;    /* Default downlink frequency */
 static GtkWidget *defUpFreq;    /* Default uplink frequency */
 static GtkWidget *sigaos;       /* AOS signalling */
 static GtkWidget *siglos;       /* LOS signalling */
+static GtkWidget *sigaoiq;      /* AOIQ signalling */
+static GtkWidget *sigloiq;      /* LOIQ signalling */
 
 
 static void clear_widgets()
@@ -62,6 +64,9 @@ static void clear_widgets()
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(ptt), FALSE);
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(sigaos), FALSE);
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(siglos), FALSE);
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(sigaoiq), FALSE);
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(sigloiq), FALSE);
+
 }
 
 static void update_widgets(radio_conf_t * conf)
@@ -115,6 +120,8 @@ static void update_widgets(radio_conf_t * conf)
     /* AOS / LOS signalling */
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(sigaos), conf->signal_aos);
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(siglos), conf->signal_los);
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(sigaoiq), conf->signal_aoiq);
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(sigloiq), conf->signal_loiq);
 }
 
 /*
@@ -480,6 +487,16 @@ static GtkWidget *create_editor_widgets(radio_conf_t * conf)
     gtk_widget_set_tooltip_text(siglos,
                                 _("Enable LOS signalling for this radio."));
 
+    sigaoiq = gtk_check_button_new_with_label(_("AOIQ"));
+    gtk_grid_attach(GTK_GRID(table), sigaoiq, 1, 11, 1, 1);
+    gtk_widget_set_tooltip_text(sigaoiq,
+                                _("Enable AOIQ signalling (start IQ recording)."));
+
+    sigloiq = gtk_check_button_new_with_label(_("LOIQ"));
+    gtk_grid_attach(GTK_GRID(table), sigloiq, 2, 11, 1, 1);
+    gtk_widget_set_tooltip_text(sigloiq,
+                                _("Enable LOIQ signalling (stop IQ recording)."));
+
     if (conf->name != NULL)
         update_widgets(conf);
 
@@ -562,6 +579,9 @@ static gboolean apply_changes(radio_conf_t * conf)
     /* AOS / LOS signalling */
     conf->signal_aos = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(sigaos));
     conf->signal_los = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(siglos));
+    conf->signal_aoiq = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(sigaoiq));
+    conf->signal_loiq = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(sigloiq));
+
 
     return TRUE;
 }

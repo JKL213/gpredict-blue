@@ -1,4 +1,4 @@
-Changes in version 2.7 (TBD)
+Changes in version 2.7 (1 Nov 2026)
 
  - Fixed sky tracks drifting or leaving the polar view when the window is resized
  - Polar view can be rotated with the mouse wheel or Ctrl+drag, and the offset is saved with the module
@@ -8,13 +8,20 @@ Changes in version 2.7 (TBD)
  - Desktop notifications for an upcoming AOS, AOS, and LOS of the selected satellite, using the module minimum elevation when one is set
  - Fixed bug causing the rotator position fields never to update after Engage (#423)
  - Fixed incorrect reading of mean motion field from TLE line2 (#426)
- - Increased radio and rotator timer limits to 30 seconds (#424)
- - Added option to configure default frequencies for radios (#274)
+ - Fixed rotator controller periodically dropping target commands (#383, #433)
+ - Fixed out-of-bounds read and NULL dereference when loading transponder JSON (#434, #437)
+ - Fixed crash when closing one of several map views (#438)
  - Fixed broken native language support (#429)
  - Fixed radio control self-deadlock on rigctld connection errors (#425)
+ - Fixed 'make distcheck' (#420)
+ - Implemented option for IQ record signalling on AOS and LOS (#371)
+ - Increased radio and rotator timer limits to 30 seconds (#424)
+ - Added option to configure default frequencies for radios (#274)
+ - Prevent opening the same module twice (#439)
  - Reject a TLE whose epoch field contains a letter (#427)
  - Updated French translation (#419)
  - Updated Danish translation
+ - Reinstated native language support (#421)
 
 
 Changes in version 2.6 (16 Aug 2026)
